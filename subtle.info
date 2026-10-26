@@ -1,0 +1,321 @@
+This is subtle.info, produced by makeinfo version 7.2 from
+subtle-customizing.texi.
+
+INFO-DIR-SECTION Emacs misc features
+START-INFO-DIR-ENTRY
+* Subtle: (subtle).     Subtitle player for mpv.
+END-INFO-DIR-ENTRY
+
+
+File: subtle.info,  Node: Top,  Next: The quick way,  Up: (dir)
+
+Customizing subtle
+******************
+
+Put any of this in your ‘init.org’ (or run ‘M-x customize-group RET
+subtle’).  Set options *before* ‘M-x subtle-open’; reopen to apply.
+
+* Menu:
+
+* The quick way::
+* Options::
+* Keys::
+* Bookmarks::
+* Recipe studying at slow speed::
+* Colours::
+* Dired::
+* Using subtle with bltzread::
+
+-- The Detailed Node Listing --
+
+Options
+
+* Looking::
+* Autoscroll::
+* Playback::
+* Files::
+* Hooks and functions::
+
+
+File: subtle.info,  Node: The quick way,  Next: Options,  Prev: Top,  Up: Top
+
+1 The quick way
+***************
+
+     (setq subtle-text-scale 1.5       ; bigger text
+           subtle-resume-delay 10      ; wait 10s before autoscroll resumes
+           subtle-seek-small 10)       ; f/b skip 10s
+
+
+File: subtle.info,  Node: Options,  Next: Keys,  Prev: The quick way,  Up: Top
+
+2 Options
+*********
+
+* Menu:
+
+* Looking::
+* Autoscroll::
+* Playback::
+* Files::
+* Hooks and functions::
+
+
+File: subtle.info,  Node: Looking,  Next: Autoscroll,  Up: Options
+
+2.1 Looking
+===========
+
+Option                            Default   What it does
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+‘subtle-text-scale’               1.3       Subtitle text size.  1.0 = your normal size.
+‘subtle-use-variable-pitch’       t         Use your ‘variable-pitch’ font.  ‘nil’ = your default font.
+‘subtle-popup-style’              'box      Pause notice: ‘'box’, ‘'echo-area’ (one-line message), ‘'none’.
+‘subtle-confirm-quit’             t         ‘q’ asks y/n before ending.  ‘nil’ = quit at once.
+‘subtle-focus-ratio’              2/3       Where the active line sits (0.5 = middle, 0.33 = upper third).
+‘subtle-hold-last-cue’            t         Keep the last cue highlighted during silent gaps.
+‘subtle-warn-continuous-scroll’   t         Only exists when bltzread is installed: warn if ‘subtle-scroll-style’ is ‘continuous’, which carries a word off the screen while you look it up.  Set to ‘nil’ once you chose that
+                                            knowingly.
+
+
+File: subtle.info,  Node: Autoscroll,  Next: Playback,  Prev: Looking,  Up: Options
+
+2.2 Autoscroll
+==============
+
+Option                      Default            What it does
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+‘subtle-resume-delay’       5                  Idle seconds before autoscroll comes back.
+‘subtle-auto-resume’        t                  ‘nil’ = never resume on its own; press ‘r’.
+‘subtle-scroll-style’       paged              ‘paged’: text stays still until the spoken line nears the bottom, then the page turns.  ‘continuous’: the spoken line stays at ‘subtle-focus-ratio’ at every cue (good for watching, hard for studying).
+‘subtle-page-margin’        2                  Lines that must stay free below the spoken line before the page turns.
+‘subtle-page-lead’          1                  Lines shown above the spoken line after a page turn (1 = it is the 2nd line).
+‘subtle-move-point’         unless-selected    Does autoscroll move the cursor to the active cue?  ‘always’, ‘never’ (only scroll; the cursor stays on the word you study), or ‘unless-selected’ (other windows always; the selected one only while the cursor is idle).
+‘subtle-move-idle-cursor’   t                  A cursor you have not moved keeps following the cue.  It counts as unmoved when it sits where subtle put it, on the first line of the window, or out of sight.  Only for ‘unless-selected’.
+‘subtle-scroll-commands’    list               Commands that count as "the user scrolled".  Arrow-key point motion is not included; it only pauses autoscroll if it really scrolls the window.
+‘subtle-layout’             single-spaced      ‘single-spaced’, ‘double-spaced’, ‘sentence’ (break after each sentence, trailing quotes/brackets included), ‘paragraph-flow’ (running text, breaks only at paragraph breaks), ‘paragraph-pause’ (like flow, and audio pauses at each break).
+‘subtle-paragraph-source’   explicit-and-gap   What makes a paragraph break: ‘explicit’ (blank line or empty cue in the file) or ‘explicit-and-gap’ (also a silence after a sentence end).
+‘subtle-paragraph-gap’      1.0                Silence (seconds) after a sentence end that starts a new paragraph.  Lower = shorter paragraphs.
+‘subtle-paragraph-pause’    1.75               Seconds the audio pauses at a paragraph end in ‘paragraph-pause’.  Does not move the breaks.
+‘subtle-sentence-closers’   regexp             Characters allowed after .?!  before the break.
+
+   Turn auto-resume off for good: ‘(setq subtle-auto-resume nil)’.
+Toggle live with ‘s t’.
+
+   Changing the layout (‘s v’) or the text size only re-spaces the text:
+overlays and lookups (bltzread colours, cards) survive.
+
+
+File: subtle.info,  Node: Playback,  Next: Files,  Prev: Autoscroll,  Up: Options
+
+2.3 Playback
+============
+
+Option                    Default        What it does
+--------------------------------------------------------------------------------------------------------------------------------
+‘subtle-seek-small’       5              Seconds for ‘f’ / ‘b’.
+‘subtle-seek-big’         30             Seconds for ‘F’ / ‘B’.
+‘subtle-speed-step’       0.25           Change per ‘]’ / ‘[’.
+‘subtle-speed-range’      (0.25 .        Slowest and fastest allowed speed.
+                          4.0)
+‘subtle-video’            'auto          ‘'never’ = audio only, no video window.
+‘subtle-mpv-executable’   "mpv"          Path to mpv if it isn't on PATH.
+‘subtle-mpv-extra-args’   nil            List of extra mpv flags, e.g.  ‘"--volume=60"’.
+‘subtle-keep-focus’       t              Pass ‘--focus-on=never’ to mpv so its window does not steal the keyboard from Emacs.
+
+
+File: subtle.info,  Node: Files,  Next: Hooks and functions,  Prev: Playback,  Up: Options
+
+2.4 Files
+=========
+
+Option                         Default         What it does
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+‘subtle-media-extensions’      mp3 mp4 mkv…    Offered when picking media.
+‘subtle-subtitle-extensions’   ("srt" "vtt")   Recognised as subtitles.
+‘subtle-language-codes’        alist           Maps the language part of a subtitle file name to your code: ‘movie.sl.srt’ gives ‘subtle-language’ the value ‘"slv"’.  An unlisted part of two or three letters is used as it
+                                               is.
+
+
+File: subtle.info,  Node: Hooks and functions,  Prev: Files,  Up: Options
+
+2.5 Hooks and functions
+=======================
+
+These let other packages (bltzread, for one) join in.  All default to
+nil.
+
+Option                       When it runs
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+‘subtle-buffer-setup-hook’   In each subtitle buffer, once built, before playback.  ‘subtle-track-index’ (0 = first file) and ‘subtle-language’ are set.
+‘subtle-pause-hook’          In a subtitle buffer when _you_ pause with ‘p’.  Not for pauses subtle makes (paragraph ends, held words).
+‘subtle-before-close-hook’   When a session closes, buffers and windows still alive, playback paused.  The place to ask questions.
+‘subtle-close-hook’          Just before the session's buffers are killed.
+‘subtle-hold-functions’      No arguments.  Autoscroll waits while one returns non-nil (e.g.  a dictionary card is open).
+‘subtle-anchor-functions’    Return a position to keep on screen, or nil.  A page turn starts at the first such position if the spoken line still fits below it; otherwise the dismiss functions run.
+‘subtle-dismiss-functions’   Close something on screen; the first to return non-nil wins.  Run when the text must move, and by ‘q’ before it asks to quit.
+‘subtle-hold-pause-lines’    Option, not a hook.  Nil, or a number of lines: playback pauses while a held-open word (see anchor functions) is that many lines above the spoken line, and goes on when it is
+                             released.
+
+   Two public functions report what was actually heard in a buffer:
+‘subtle-played-through-position’ (the end of the latest continuous run
+of playback) and ‘subtle-played-start-position’ (where that run began).
+Seeking or pausing does not move them.
+
+
+File: subtle.info,  Node: Keys,  Next: Bookmarks,  Prev: Options,  Up: Top
+
+3 Keys
+******
+
+Press ‘h’ or ‘?’ any time for a box listing every key.  All keys are
+single letters (rarer ones follow the prefix ‘s’).  Subtitle buffers sit
+in meow's motion state, where only ‘j’ and ‘k’ are taken, so single
+letters work.  The letters do not clash with bltzread's: ‘}’ and ‘{’
+step through unknown words, ‘(’ and ‘)’ through cues.
+
+Key         Does
+------------------------------------------------------------------------------------------------------------------
+‘p’         pause / resume
+‘f’ / ‘b’   skip forward / back (small)
+‘F’ / ‘B’   skip forward / back (big)
+‘]’ / ‘[’   faster / slower
+‘=’         normal speed
+‘)’ / ‘(’   next / previous cue
+‘RET’       play from the cue at point
+‘r’         resume autoscroll now
+‘s t’       toggle automatic resume
+‘s s’       swap left and right windows
+‘s v’       set the layout
+‘s o’       set one option (applies at once; lasts for this Emacs session)
+‘h’ / ‘?’   help box
+‘q’         close what is open (a bltzread card first, then the notice box); with nothing open, quit (asks y/n)
+
+   The top strip only shows entries that have a hint string (pause, fwd,
+back, help, quit).  Each row of ‘subtle-controls’ is ‘(KEY COMMAND
+HINT)’: give it a hint to put it in the strip, ‘nil’ to keep it out.
+Every row still appears in the help box.  A KEY may have two keys (‘"s
+t"’); the first becomes a prefix.  Change a key, then reload:
+
+     (setq subtle-controls
+           (mapcar (lambda (row)
+                     (if (equal (car row) "p") (cons "SPC" (cdr row)) row))
+                   subtle-controls))
+     (subtle-reload-controls)
+
+   Reload adds bindings; restart Emacs (or reopen) to drop old ones.
+
+
+File: subtle.info,  Node: Bookmarks,  Next: Recipe studying at slow speed,  Prev: Keys,  Up: Top
+
+4 Bookmarks
+***********
+
+A subtle bookmark stores the media, the subtitles and the playback
+position.  ‘subtle-bookmark-jump’ (what ‘bookmark-jump’ calls) reopens
+the session 3 seconds before where you left off.
+
+
+File: subtle.info,  Node: Recipe studying at slow speed,  Next: Colours,  Prev: Bookmarks,  Up: Top
+
+5 Recipe: studying at slow speed
+********************************
+
+     (setq subtle-scroll-style 'paged        ; the default: text holds still
+           subtle-hold-pause-lines 8         ; pause when a held word is 8 lines above
+           subtle-move-point 'never          ; the cursor stays on your word
+           subtle-speed-step 0.05)           ; finer steps for ] and [
+
+   Press ‘[’ until the speed is 0.75 to 0.85 (‘=’ returns to normal).
+Pause with ‘p’ whenever you want to look at a word; with paged scrolling
+the text does not move under you.  ‘subtle-hold-pause-lines’ only does
+something once another package names the word you hold open through
+‘subtle-anchor-functions’.
+
+
+File: subtle.info,  Node: Colours,  Next: Dired,  Prev: Recipe studying at slow speed,  Up: Top
+
+6 Colours
+*********
+
+Faces (use ‘M-x customize-face’, or ‘set-face-attribute’):
+
+Face                    Styles
+---------------------------------------------------------
+‘subtle-current’        the active cue
+‘subtle-key’            key names in the control strip
+‘subtle-popup’          pause box body
+‘subtle-popup-border’   pause box border
+‘subtle-popup-title’    "AUTOSCROLL PAUSED" label
+‘subtle-popup-key’      key caps in the box
+
+     (custom-set-faces
+      '(subtle-current ((t :background "#335533" :weight bold)))
+      '(subtle-popup-border ((t :foreground "#ff5555"))))
+
+
+File: subtle.info,  Node: Dired,  Next: Using subtle with bltzread,  Prev: Colours,  Up: Top
+
+7 Dired
+*******
+
+     (use-package subtle
+       :load-path "~/.config/emacs/smdi-emacs-modules/subtle"
+       :straight nil
+       :commands (subtle-open subtle-dired-open)
+       :bind (:map dired-mode-map ("C-c s" . subtle-dired-open)))
+
+   In Dired, mark a media file and/or up to two subtitles (or just put
+point on one) and press ‘C-c s’.  Missing subtitles are found by
+matching file names.
+
+
+File: subtle.info,  Node: Using subtle with bltzread,  Prev: Dired,  Up: Top
+
+8 Using subtle with bltzread
+****************************
+
+No bridge package is needed.  These settings make them compose: reading
+credit counts only what was played; bltzread is on for the track you
+study; pausing starts a hunt for unknown words.
+
+     (setq bltzread-range-farthest-source #'subtle-played-through-position
+           bltzread-range-start-function  #'subtle-played-start-position)
+
+     (add-hook 'subtle-buffer-setup-hook
+               (lambda ()
+                 (when (= subtle-track-index 0)
+                   (setq bltzread-language subtle-language)
+                   (bltzread-mode 1))))
+
+     (add-hook 'subtle-pause-hook
+               (lambda () (when bltzread-mode (bltzread-avy-unknown))))
+
+   ‘bltzread-avy-unknown’ needs ‘avy’.  The first load of a big
+transcript takes a moment (one bltzr call for all its words).  See the
+bltzread manual for details.
+
+
+Tag Table:
+Node: Top212
+Node: The quick way734
+Node: Options1032
+Node: Looking1219
+Node: Autoscroll2551
+Node: Playback5586
+Node: Files6618
+Node: Hooks and functions7468
+Node: Keys9449
+Node: Bookmarks11328
+Node: Recipe studying at slow speed11649
+Node: Colours12462
+Node: Dired13179
+Node: Using subtle with bltzread13678
+
+End Tag Table
+
+
+Local Variables:
+coding: utf-8
+Info-documentlanguage: en
+End:
