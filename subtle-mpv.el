@@ -1,5 +1,12 @@
 ;;; subtle-mpv.el --- mpv process and JSON IPC -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 smdi
+
+;; Author: smdi <you@example.com>
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is part of subtle; see subtle.el for the license notice.
+
 ;;; Commentary:
 
 ;; Starts mpv with an IPC socket, observes time-pos / pause / speed and
@@ -9,6 +16,8 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'seq)
+(require 'subr-x)
 (require 'json)
 (require 'subtle-custom)
 
@@ -16,18 +25,28 @@
   process connection socket on-message on-exit)
 
 (defconst subtle-mpv--observed '("time-pos" "pause" "speed"))
-(defconst subtle-mpv--connect-attempts 60)
+(defconst subtle-mpv--connect-interval 0.05
+  "Seconds between attempts to connect to the socket of mpv.")
 
 ;;; Pure helpers
 
 (defun subtle-mpv--args (media socket)
-  "Command-line arguments for playing MEDIA with IPC on SOCKET."
-  (append (list "--no-terminal" (concat "--input-ipc-server=" socket)
-                "--sub-auto=no" "--sid=no" "--keep-open=yes" "--audio-display=no")
+  "Command-line arguments for playing MEDIA with IPC on SOCKET.
+The user's `subtle-mpv-extra-args' come after the others, so they win."
+  (append subtle-mpv-base-args
+          (list (concat "--input-ipc-server=" socket))
           (and (eq subtle-video 'never) (list "--vid=no"))
           (and subtle-keep-focus (list "--focus-on=never"))
           subtle-mpv-extra-args
           (list "--" media)))
+
+(defun subtle-mpv--attempts ()
+  "Number of connection attempts that fit in `subtle-mpv-connect-timeout'."
+  (ceiling subtle-mpv-connect-timeout subtle-mpv--connect-interval))
+
+(defun subtle-mpv--socket-name ()
+  "A fresh socket path under the variable `temporary-file-directory'.\nThe file itself is not made."
+  (make-temp-name (expand-file-name "subtle-" temporary-file-directory)))
 
 (defun subtle-mpv--command (args)
   "JSON line asking mpv to run the command ARGS."
@@ -81,11 +100,13 @@
                   subtle-mpv--observed))
 
 (defun subtle-mpv--connect (mpv attempt)
-  "Connect MPV once its socket exists, retrying after ATTEMPT tries."
+  "Connect MPV once its socket exists.
+Retry later; ATTEMPT counts the attempts so far."
   (cond ((not (process-live-p (subtle-mpv-process mpv))) nil)
         ((file-exists-p (subtle-mpv-socket mpv)) (subtle-mpv--open-connection mpv))
-        ((>= attempt subtle-mpv--connect-attempts) (funcall (subtle-mpv-on-exit mpv)))
-        (t (run-at-time 0.05 nil #'subtle-mpv--connect mpv (1+ attempt)))))
+        ((>= attempt (subtle-mpv--attempts)) (funcall (subtle-mpv-on-exit mpv)))
+        (t (run-at-time subtle-mpv--connect-interval nil
+                        #'subtle-mpv--connect mpv (1+ attempt)))))
 
 (defun subtle-mpv--spawn (mpv media)
   "Start the mpv process of MPV playing MEDIA."
@@ -99,7 +120,7 @@
 (defun subtle-mpv-start (media on-message on-exit)
   "Play MEDIA in a new mpv.
 ON-MESSAGE gets each message; ON-EXIT is called when mpv goes away."
-  (let ((mpv (subtle-mpv--make :socket (make-temp-name "/tmp/subtle-")
+  (let ((mpv (subtle-mpv--make :socket (subtle-mpv--socket-name)
                                 :on-message on-message :on-exit on-exit)))
     (setf (subtle-mpv-process mpv) (subtle-mpv--spawn mpv media))
     (subtle-mpv--connect mpv 0)

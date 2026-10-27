@@ -1,5 +1,12 @@
 ;;; subtle-layout.el --- How cues are arranged in text -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 smdi
+
+;; Author: smdi <you@example.com>
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is part of subtle; see subtle.el for the license notice.
+
 ;;; Commentary:
 
 ;; Pure functions: where sentences end, where paragraphs break, and what
@@ -14,11 +21,24 @@
 
 (defun subtle-layout--terminator-re ()
   "Regexp for a sentence terminator with its trailing closers."
-  (concat "[.?!…]+" subtle-sentence-closers))
+  (concat (regexp-opt-charset (string-to-list subtle-sentence-terminators))
+          "+" subtle-sentence-closers))
+
+(defun subtle-layout--property (layout property)
+  "PROPERTY of LAYOUT in the table `subtle-layouts'."
+  (plist-get (cdr (assq layout subtle-layouts)) property))
 
 (defun subtle-layout-inline-p (layout)
-  "Non-nil if LAYOUT lets several cues share a line."
-  (memq layout '(sentence paragraph-flow paragraph-pause)))
+  "Non-nil if LAYOUT permits sharing a line between cues."
+  (subtle-layout--property layout :inline))
+
+(defun subtle-layout-paragraphs-p (layout)
+  "Non-nil if paragraph breaks matter in LAYOUT."
+  (subtle-layout--property layout :paragraphs))
+
+(defun subtle-layout-pause-p (layout)
+  "Non-nil if playback pauses at the paragraph ends of LAYOUT."
+  (subtle-layout--property layout :pause))
 
 (defun subtle-layout-sentence-end-p (text)
   "Non-nil if TEXT ends a sentence."
@@ -44,39 +64,65 @@ SOURCE is `subtle-paragraph-source'."
            (>= (- (subtle-cue-start next) (subtle-cue-end cue))
                subtle-paragraph-gap))))
 
+(defun subtle-layout-fill (string width)
+  "Return STRING with some spaces turned into newlines to fit lines in WIDTH.
+The result has the length of STRING, so positions in it stay valid.  Existing
+newlines start a new line; a word longer than WIDTH is left whole.  A WIDTH
+that is not a positive integer (like -1) changes nothing."
+  (if (not (and (integerp width) (> width 0)))
+      string
+    (let ((s (copy-sequence string)) (col 0) (last-space nil) (i 0))
+      (while (< i (length s))
+        (let ((c (aref s i)))
+          (cond ((eq c ?\n) (setq col 0 last-space nil))
+                ((memq c '(?\s ?\t)) (setq col (1+ col) last-space i))
+                (t (setq col (1+ col))
+                   (when (and (> col width) last-space)
+                     (aset s last-space ?\n)
+                     (setq col (- i last-space) last-space nil)))))
+        (setq i (1+ i)))
+      s)))
+
 (defun subtle-layout-text (layout cue)
-  "Text to show for CUE under LAYOUT."
-  (if (eq layout 'sentence)
-      (string-join (subtle-layout-sentence-split (subtle-cue-text cue)) "\n")
-    (subtle-cue-text cue)))
+  "Text to show for CUE under LAYOUT, wrapped per `subtle-cue-fill-column'.
+The paragraph layouts are filled as a whole instead; see
+`subtle-paragraph-fill-column'."
+  (let ((text (if (eq layout 'sentence)
+                  (string-join (subtle-layout-sentence-split (subtle-cue-text cue)) "\n")
+                (subtle-cue-text cue))))
+    (if (subtle-layout-paragraphs-p layout)
+        text
+      (subtle-layout-fill text subtle-cue-fill-column))))
 
 (defun subtle-layout-separator (layout source cue next)
-  "String that goes between CUE and NEXT under LAYOUT."
-  (pcase layout
-    ('double-spaced "\n\n")
-    ('sentence (if (subtle-layout-sentence-end-p (subtle-cue-text cue)) "\n" " "))
-    ((or 'paragraph-flow 'paragraph-pause)
-     (if (subtle-layout-break-after-p source cue next) "\n\n" " "))
-    (_ "\n")))
+  "Return the string between CUE and NEXT under LAYOUT.
+SOURCE is `subtle-paragraph-source'."
+  (cond ((subtle-layout-paragraphs-p layout)
+         (if (subtle-layout-break-after-p source cue next) "\n\n" " "))
+        ((eq layout 'sentence)
+         (if (subtle-layout-sentence-end-p (subtle-cue-text cue)) "\n" " "))
+        (t (or (subtle-layout--property layout :separator) "\n"))))
 
 (defun subtle-layout-pause-points (source track)
-  "Sorted vector of the end times of the paragraphs of TRACK."
-  (let* ((cues (subtle-track-cues track)))
+  "Return the sorted vector of paragraph end times of TRACK.
+SOURCE is `subtle-paragraph-source'."
+  (let ((cues (subtle-track-cues track)))
     (vconcat
      (seq-sort #'<
-      (delq nil
-           (seq-map-indexed
-            (lambda (cue i)
-              (and (subtle-layout-break-after-p
-                    source cue (and (< (1+ i) (length cues)) (aref cues (1+ i))))
-                   (< (1+ i) (length cues))
-                   (subtle-cue-end cue)))
-            cues))))))
+               (delq nil
+                     (seq-map-indexed
+                      (lambda (cue i)
+                        (let ((next (and (< (1+ i) (length cues)) (aref cues (1+ i)))))
+                          (and next
+                               (subtle-layout-break-after-p source cue next)
+                               (subtle-cue-end cue))))
+                      cues))))))
 
 (defun subtle-layout-pause-crossed (points from to)
   "The element of the sorted vector POINTS in (FROM, TO], or nil.
-A step of more than a second is a seek, not playback, and finds nothing."
-  (when (and (> to from) (<= (- to from) 1.0))
+A step beyond `subtle-track-seek-threshold' is a seek, not playback,
+and finds nothing."
+  (when (and (> to from) (<= (- to from) subtle-track-seek-threshold))
     (let ((i (subtle-track--before points to)))
       (and (>= i 0) (> (aref points i) from) (aref points i)))))
 

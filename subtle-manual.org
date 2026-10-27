@@ -1,0 +1,368 @@
+#+title: Subtle manual
+#+texinfo_filename: subtle.info
+#+texinfo_dir_category: Emacs misc features
+#+texinfo_dir_title: Subtle: (subtle)
+#+texinfo_dir_desc: Subtitle player for mpv
+\<subtle-mode-map>
+
+subtle plays an audio or video file in mpv and shows each subtitle file
+(=.srt= or =.vtt=, up to two at once) as read-only text in Emacs.  The cue
+being spoken is highlighted and the text follows the audio.  It is made for
+studying a language: the text stays still until the page needs turning,
+scrolling by hand pauses the autoscroll, and paragraph layouts turn cue
+fragments into running text.
+
+If you are new, start with the tutorial (=M-x subtle-tutorial=).  This
+manual is the full description.  Everything here that mentions a key shows
+the key you have bound when read with =M-x subtle-manual=, and the default
+key in the Info version.
+
+* Overview
+
+** Requirements
+
+Emacs 29.1 or later, and mpv on your =PATH= (or set
+=subtle-mpv-executable=).  subtle talks to mpv through its JSON IPC
+socket, so Windows is not supported.
+
+** Starting and stopping
+
+- =M-x subtle-open= asks for a media file and one or two subtitle files.
+- =M-x subtle-dired-open= does the same from Dired: it uses the marked
+  files, or the file at point, and finds missing subtitles by file name
+  (=film.mkv=, =film.sl.srt=).
+- =\[subtle-quit]= closes what is open on screen (a popup, the help box),
+  and with nothing open asks whether to quit.  =M-x subtle-close= ends the
+  session without asking.
+- =M-x bookmark-set= in a subtle buffer records the media, subtitles and
+  time.  Jumping to the bookmark (=subtle-bookmark-jump=) reopens them
+  =subtle-bookmark-rewind= seconds earlier, paused unless
+  =subtle-bookmark-autoplay= is set.
+
+** Autoscroll
+
+Autoscroll moves the window only when the spoken cue is off screen or has
+entered a page margin.  Pausing, resizing the window, or the automatic
+resume never move the text by themselves.  Scrolling by hand stops the
+autoscroll and shows a notice; it resumes after =subtle-resume-delay=
+seconds (if =subtle-auto-resume= is on) or when you press
+=\[subtle-resume-follow]=.
+
+** Layouts
+
+=subtle-layout= decides how cues are arranged.
+
+| Layout            | Meaning                                            |
+|-------------------+----------------------------------------------------|
+| =single-spaced=   | one cue per line (default)                         |
+| =double-spaced=   | a blank line between cues                          |
+| =sentence=        | a line break after each sentence                   |
+| =paragraph-flow=  | running text, broken at paragraph breaks           |
+| =paragraph-pause= | like flow; playback pauses at each break          |
+
+Paragraph breaks come from blank lines or empty cues in the file and, when
+=subtle-paragraph-source= is =explicit-and-gap=, from silences of
+=subtle-paragraph-gap= seconds after a sentence end.
+
+* Quick reference
+
+** Keys
+
+| Key                              | Command                           |
+|----------------------------------+-----------------------------------|
+| =\[subtle-toggle-pause]=              | =subtle-toggle-pause=             |
+| =\[subtle-seek-forward]=              | =subtle-seek-forward=             |
+| =\[subtle-seek-backward]=             | =subtle-seek-backward=            |
+| =\[subtle-seek-forward-big]=          | =subtle-seek-forward-big=         |
+| =\[subtle-seek-backward-big]=         | =subtle-seek-backward-big=        |
+| =\[subtle-faster]=                    | =subtle-faster=                   |
+| =\[subtle-slower]=                    | =subtle-slower=                   |
+| ~\[subtle-reset-speed]~               | =subtle-reset-speed=              |
+| =\[subtle-next-cue]=                  | =subtle-next-cue=                 |
+| =\[subtle-previous-cue]=              | =subtle-previous-cue=             |
+| =\[subtle-seek-to-cue-at-point]=      | =subtle-seek-to-cue-at-point=     |
+| =\[subtle-resume-follow]=             | =subtle-resume-follow=            |
+| =\[subtle-point-track-toggle]=              | =subtle-point-track-toggle=             |
+| =\[subtle-toggle-auto-resume]=        | =subtle-toggle-auto-resume=       |
+| =\[subtle-swap-sides]=                | =subtle-swap-sides=               |
+| =\[subtle-set-layout]=                | =subtle-set-layout=               |
+| =\[subtle-set-option]=                | =subtle-set-option=               |
+| =\[subtle-help]=                      | =subtle-help=                     |
+| =\[subtle-quit]=                      | =subtle-quit=                     |
+
+=subtle-help= is also on =?=.  All keys live in =subtle-mode-map= (and the
+sub-map =subtle-prefix-map=, behind the =s= key).
+
+** Customization groups
+
+| Group               | Holds                                           |
+|---------------------+-------------------------------------------------|
+| =subtle=            | everything; the other groups are inside it      |
+| =subtle-playback=   | mpv, seeking, speed, files                      |
+| =subtle-scrolling=  | autoscroll and the notice                       |
+| =subtle-text=       | layout and the look of the text                 |
+| =subtle-point-track=      | blitz reading                                   |
+| =subtle-hooks=      | hooks and extension points                      |
+| =subtle-faces=      | faces and the look of popups                    |
+
+* Options
+
+Set an option with =setopt= (or Customize) and a running session changes at
+once for the options that can: layout, text size, fill columns and the
+notice style.  The rest are read when they are used.  =\[subtle-set-option]=
+(=subtle-set-option=) asks for an option and a value and sets it for the
+rest of the Emacs session; it is a thin wrapper over
+=customize-set-variable=.
+
+** Playback
+
+| Option                       | Default       | Meaning                                    |
+|------------------------------+---------------+--------------------------------------------|
+| =subtle-mpv-executable=      | "mpv"         | The mpv program.                           |
+| =subtle-mpv-base-args=       | see below     | Arguments always given to mpv.             |
+| =subtle-mpv-extra-args=      | nil           | Your own additional mpv arguments.         |
+| =subtle-mpv-connect-timeout= | 3.0           | Seconds to wait for mpv's socket.          |
+| =subtle-keep-focus=          | t             | Keep mpv from taking the keyboard focus.   |
+| =subtle-video=               | auto          | =never= plays audio only.                  |
+| =subtle-seek-small=          | 5             | Seconds skipped by the small seek keys.    |
+| =subtle-seek-big=            | 30            | Seconds skipped by the big seek keys.      |
+| =subtle-speed-step=          | 0.25          | Change per faster or slower.               |
+| =subtle-speed-range=         | (0.25 . 4.0)  | Slowest and fastest speed.                 |
+| =subtle-previous-cue-restart=| 1.0           | Within this many seconds of a cue's start, previous cue goes to the one before; later, it restarts this cue. |
+| =subtle-hold-last-cue=       | t             | Keep the last cue highlighted in a silent gap. |
+| =subtle-confirm-quit=        | t             | Ask before quitting.                       |
+| =subtle-bookmark-rewind=     | 3             | Seconds a bookmark jump goes back.         |
+| =subtle-bookmark-autoplay=   | nil           | Non-nil starts playing when a bookmark opens; nil opens it paused. |
+| =subtle-media-extensions=    | mp3 m4a flac wav ogg opus aac wma mp4 mkv webm mov avi m4v | Offered when picking media. |
+| =subtle-subtitle-extensions= | ("srt" "vtt") | Recognised as subtitles.                   |
+
+The base arguments are ="--no-terminal" "--sub-auto=no" "--sid=no"
+"--keep-open=yes" "--audio-display=no"=.  Leave them alone unless you know
+why; add your own through =subtle-mpv-extra-args=:
+
+#+begin_src emacs-lisp
+(setopt subtle-mpv-extra-args '("--volume=60" "--af=scaletempo2"))
+#+end_src
+
+** Scrolling
+
+| Option                          | Default         | Meaning                                  |
+|---------------------------------+-----------------+------------------------------------------|
+| =subtle-scroll-style=           | paged           | =paged= keeps text still until the page turns; =continuous= keeps the spoken line at =subtle-focus-ratio=. |
+| =subtle-focus-ratio=            | 2/3             | Where the spoken line sits (0.5 is the middle). |
+| =subtle-page-margin=            | 2               | Free lines below the spoken line before the page turns. |
+| =subtle-page-top-margin=        | 0               | Free lines above it. Kept below =subtle-page-lead=. |
+| =subtle-page-lead=              | 1               | Lines above the spoken line after a page turn. |
+| =subtle-hold-pause-lines=       | nil             | Pause playback while a held word is this many lines above the spoken one. |
+| =subtle-move-point=             | unless-selected | Whether autoscroll moves the cursor: =always=, =never= or =unless-selected=. |
+| =subtle-move-idle-cursor=       | t               | An idle cursor keeps following the cue.  |
+| =subtle-resume-delay=           | 5               | Seconds before autoscroll resumes.       |
+| =subtle-auto-resume=            | t               | Resume by itself.                        |
+| =subtle-scroll-commands=        | list            | Commands that count as scrolling by hand. |
+| =subtle-popup-style=            | box             | The notice: =box=, =echo-area= or =none=. |
+| =subtle-warn-continuous-scroll= | t               | Warn when =continuous= is used with bltzread. |
+
+** Text
+
+| Option                          | Default          | Meaning                                  |
+|---------------------------------+------------------+------------------------------------------|
+| =subtle-layout=                 | single-spaced    | See Layouts above.                       |
+| =subtle-paragraph-source=       | explicit-and-gap | =explicit= or =explicit-and-gap=.        |
+| =subtle-paragraph-gap=          | 1.0              | Silence after a sentence that ends a paragraph. |
+| =subtle-paragraph-pause=        | 1.75             | Seconds paused at a break in =paragraph-pause=. |
+| =subtle-sentence-terminators=   | ".?!…。！？؟"     | Characters that end a sentence.          |
+| =subtle-sentence-closers=       | regexp           | Characters allowed after a terminator.   |
+| =subtle-cue-fill-column=        | nil              | Wrap long cues at this width (non-paragraph layouts). |
+| =subtle-paragraph-fill-column=  | nil              | Fill paragraphs to this width.           |
+| =subtle-text-scale=             | 1.3              | Size of the text (1.0 is normal).        |
+| =subtle-use-variable-pitch=     | t                | Use the =variable-pitch= face.           |
+| =subtle-language-codes=         | alist            | Maps the language part of =movie.sl.srt= to your code (sl gives "slv"); an unlisted two or three letter part is used as it is. |
+| =subtle-control-strip=          | see below        | Commands shown in the strip at the top.  |
+
+The strip is an alist of (COMMAND . LABEL).  The key shown is looked up in
+=subtle-mode-map=, so rebinding a key changes the strip too:
+
+#+begin_src emacs-lisp
+(setopt subtle-control-strip
+        '((subtle-toggle-pause . "pause")
+          (subtle-previous-cue . "prev")
+          (subtle-next-cue . "next")
+          (subtle-help . "help")))
+#+end_src
+
+** Blitz reading
+
+Blitz reading makes point follow the playback: at every new cue it jumps to
+the word a package chose (bltzread: the first unknown one), or to the start
+of the cue when none was chosen.  \\[subtle-point-track-toggle] switches it on and
+off.  Moving point off the cue pauses it until point is back on the cue.
+Moving point less than =subtle-point-track-nav-grace= seconds before a cue change
+releases it as well, so a word you are just reading is not snatched away.
+A card that is open when point moves is dismissed, and
+=subtle-point-track-moved-functions= then lets a package show something for the
+new word: bltzread opens its card there, so no key is needed.
+
+| Option                         | Default | Meaning                                    |
+|--------------------------------+---------+--------------------------------------------|
+| =subtle-point-track-initially=          | t       | Point jumps to the chosen word of each new cue. |
+| =subtle-point-track-nav-grace=       | 0.25    | Moving point this many seconds before a cue change releases blitz. |
+| =subtle-point-track-indicator=       | t       | Show a small corner box while blitz is on. |
+
+** Popups
+
+| Option                         | Default   | Meaning                                    |
+|--------------------------------+-----------+--------------------------------------------|
+| =subtle-popup-box-style=       | unicode   | Box drawing characters: =unicode= or =ascii=. |
+| =subtle-popup-frame-parameters=| nil       | Frame parameters merged over the defaults of the child frames; yours win. |
+
+#+begin_src emacs-lisp
+(setopt subtle-popup-box-style 'ascii
+        subtle-popup-frame-parameters '((internal-border-width . 4)))
+#+end_src
+
+* Commands
+
+Besides the keys above:
+
+- =subtle-open= (media and subtitle files) and =subtle-dired-open=.
+- =subtle-close= ends the session at once.
+- =subtle-bookmark-jump= is the bookmark handler.
+- =subtle-manual= and =subtle-tutorial= show these documents.
+- =subtle-set-option= takes an OPTION and a VALUE, reading them from the
+  minibuffer when called interactively.  Complex values are read as Lisp
+  and checked against the option's type.
+- =subtle-set-layout= takes a LAYOUT.
+
+* Hooks
+
+Every hook is also a customizable option, so use =add-hook= or Customize.
+
+** Normal hooks
+
+| Hook                         | Runs                                           |
+|------------------------------+------------------------------------------------|
+| =subtle-open-hook=           | once a session is open (buffers shown, mpv started); =subtle-current-session= is the new session. |
+| =subtle-buffer-setup-hook=   | in each subtitle buffer, once built; =subtle-track-index= and =subtle-language= are set. |
+| =subtle-pause-hook=          | in a subtitle buffer when you pause. Not for pauses subtle makes itself. |
+| =subtle-rebuild-hook=        | after the text was redrawn for a changed option. |
+| =subtle-before-close-hook=   | when a session closes, buffers still alive. The place to ask questions. |
+| =subtle-close-hook=          | just before the buffers are killed.            |
+
+** Abnormal hooks
+
+| Hook                               | Arguments, and what is done with the result |
+|------------------------------------+---------------------------------------------|
+| =subtle-cue-change-functions=      | BUFFER INDEX: a new cue became the spoken one in BUFFER (INDEX is nil in a gap). |
+| =subtle-before-cue-change-functions= | BUFFER INDEX: just before the above, before the window scrolls. |
+| =subtle-follow-change-functions=   | SESSION FOLLOW: autoscroll stopped or resumed. |
+| =subtle-mpv-message-functions=     | SESSION MESSAGE: a message from mpv, after subtle handled it.  MESSAGE is (time-pos . SECONDS), (pause . BOOL) or (speed . NUMBER); keep the functions quick. |
+| =subtle-hold-functions=            | none: autoscroll waits while one returns non-nil. |
+| =subtle-anchor-functions=          | none: return a position to keep on screen, or nil. |
+| =subtle-dismiss-functions=         | none: close something on screen; the first non-nil wins. |
+| =subtle-cue-point-functions=       | BEG END of the cue: return where point should go, or nil. The first answer wins. |
+| =subtle-point-track-moved-functions=     | BUFFER POS: blitz reading just moved point to POS; show something about the word there. |
+
+* Faces
+
+| Face                        | Styles                                  |
+|-----------------------------+-----------------------------------------|
+| =subtle-current=            | the spoken cue                          |
+| =subtle-current-inline=     | the spoken cue in running-text layouts  |
+| =subtle-key=                | key names in the control strip          |
+| =subtle-header-state=       | the play or pause state in the header line |
+| =subtle-header-label=       | the name in the header line             |
+| =subtle-point-track-indicator=    | the text of the blitz indicator         |
+| =subtle-popup=              | body of popup boxes                     |
+| =subtle-popup-border=       | border of popup boxes                   |
+| =subtle-popup-title=        | titles in popup boxes                   |
+| =subtle-popup-key=          | key caps in popup boxes                 |
+
+#+begin_src emacs-lisp
+(custom-set-faces
+ '(subtle-current ((t :background "#335533")))
+ '(subtle-popup-border ((t :foreground "#ff5555"))))
+#+end_src
+
+* Extending
+
+** Public API
+
+| Name                                | What it gives                           |
+|-------------------------------------+-----------------------------------------|
+| =subtle-current-session=            | the open session, or nil                |
+| =subtle-active-p=                   | non-nil while a session is open         |
+| =subtle-session-buffers=            | accessor: the subtitle buffers of a session |
+| =subtle-session-pairs=              | the (BUFFER . INDEX) of each live buffer |
+| =subtle-cue-span=                   | the (BEG . END) of cue INDEX in BUFFER  |
+| =subtle-held-p=                     | non-nil while something holds the text still |
+| =subtle-played-start-position=      | where the latest continuous playback began, in this buffer |
+| =subtle-played-through-position=    | where it has reached; seeking does not move it |
+| =subtle-popup-make-frame=           | an invisible child frame showing a box  |
+| =subtle-set-option=                 | set an option for this session          |
+| =subtle-mode-map=                   | the keymap; add your keys here          |
+
+The variables =subtle-track-index= and =subtle-language= are set in every
+subtitle buffer.
+
+** Adding a key
+
+#+begin_src emacs-lisp
+(keymap-set subtle-mode-map "SPC" #'subtle-toggle-pause)
+#+end_src
+
+The help box and the control strip read the keymap, so the new key appears
+in both.
+
+** React to the spoken cue
+
+#+begin_src emacs-lisp
+(add-hook 'subtle-cue-change-functions
+          (lambda (buffer index)
+            (when index
+              (message "%s: cue %d" (buffer-name buffer) index))))
+#+end_src
+
+** Recipe: studying at a slow speed
+
+#+begin_src emacs-lisp
+(setopt subtle-scroll-style 'paged
+        subtle-move-point 'never
+        subtle-speed-step 0.05)
+#+end_src
+
+Press =\[subtle-slower]= until the speed is about 0.8.  With paged
+scrolling the text does not move under you when you pause to look at a word.
+
+** Using subtle with bltzread
+
+bltzread is a separate package that marks and looks up words.  subtle does
+not need it.  To annotate the track you study and to give reading credit
+only for what was played:
+
+#+begin_src emacs-lisp
+(with-eval-after-load 'bltzread
+  (setq bltzread-range-farthest-source #'subtle-played-through-position
+        bltzread-range-start-function  #'subtle-played-start-position))
+
+(add-hook 'subtle-buffer-setup-hook
+          (lambda ()
+            (when (and (= subtle-track-index 0) (require 'bltzread nil t))
+              (setq-local bltzread-language subtle-language)
+              (bltzread-mode 1))))
+#+end_src
+
+bltzread subscribes to subtle's hold, anchor, dismiss and cue point
+functions itself when it is loaded.  Its other functions can be added to
+=subtle-pause-hook= like any other:
+
+#+begin_src emacs-lisp
+(add-hook 'subtle-pause-hook
+          (lambda () (when bltzread-mode (bltzread-avy-unknown))))
+#+end_src
+
+** Dired
+
+#+begin_src emacs-lisp
+(with-eval-after-load 'dired
+  (keymap-set dired-mode-map "C-c s" #'subtle-dired-open))
+#+end_src

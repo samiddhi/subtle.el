@@ -1,5 +1,12 @@
 ;;; subtle-parse.el --- SRT and VTT parsing -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 smdi
+
+;; Author: smdi <you@example.com>
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is part of subtle; see subtle.el for the license notice.
+
 ;;; Commentary:
 
 ;; text -> blocks -> cues -> track.  SRT and VTT share one pipeline: a
@@ -20,8 +27,12 @@
   "Inline markup removed from cue text: HTML-ish tags and ASS overrides.")
 
 (defconst subtle-parse--entities
-  '(("&amp;" . "&") ("&lt;" . "<") ("&gt;" . ">") ("&nbsp;" . " "))
-  "HTML entities decoded in cue text.")
+  '(("&lt;" . "<") ("&gt;" . ">") ("&quot;" . "\"") ("&apos;" . "'")
+    ("&nbsp;" . " ") ("&amp;" . "&"))
+  "Named HTML entities decoded in cue text; `&amp;' goes last.")
+
+(defconst subtle-parse--numeric-entity-re "&#\\(x\\)?\\([0-9a-fA-F]+\\);"
+  "Matches numeric entities such as &#39; and &#x27;.")
 
 (defun subtle-parse--parse-timestamp (string)
   "Seconds denoted by the first timestamp in STRING, or nil."
@@ -46,11 +57,23 @@
                 (replace-regexp-in-string (car pair) (cdr pair) text t t))
               alist string))
 
+(defun subtle-parse--numeric-entity (entity)
+  "Character denoted by the numeric ENTITY, as a string."
+  (string-match subtle-parse--numeric-entity-re entity)
+  (string (string-to-number (match-string 2 entity)
+                            (if (match-beginning 1) 16 10))))
+
+(defun subtle-parse--decode-numeric (text)
+  "TEXT with numeric entities replaced by their characters."
+  (replace-regexp-in-string subtle-parse--numeric-entity-re
+                            #'subtle-parse--numeric-entity text t t))
+
 (defun subtle-parse--clean-text (lines)
   "Join LINES into one tag-free, entity-free, trimmed string."
   (thread-last (string-join lines " ")
                (subtle-parse--replace-all
                 (mapcar (lambda (re) (cons re "")) subtle-parse--markup-regexps))
+               subtle-parse--decode-numeric
                (subtle-parse--replace-all subtle-parse--entities)
                string-trim))
 
@@ -59,7 +82,7 @@
   "Blocks without a time line that are not cue text.")
 
 (defun subtle-parse--block->cue (block)
-  "Cue described by BLOCK, or nil when it holds none.
+  "Cue described by BLOCK, or nil when BLOCK is empty.
 A cue with no text is returned with empty text; the caller treats it as a break."
   (let* ((lines (split-string block "\n" t))
          (rest (seq-drop-while (lambda (l) (not (string-match-p "-->" l))) lines))

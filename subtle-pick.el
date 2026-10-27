@@ -1,5 +1,12 @@
 ;;; subtle-pick.el --- Choosing media and subtitle files -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 smdi
+
+;; Author: smdi <you@example.com>
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is part of subtle; see subtle.el for the license notice.
+
 ;;; Commentary:
 
 ;; Interactive selection.  Ranking of candidates is a pure function of
@@ -10,13 +17,14 @@
 (require 'seq)
 (require 'subr-x)
 (require 'subtle-custom)
+(require 'subtle-track)
 
 (defun subtle-pick--extension-p (file extensions)
   "Non-nil if FILE has one of EXTENSIONS, ignoring case."
   (member (downcase (or (file-name-extension file) "")) extensions))
 
 (defun subtle-pick--base-p (media-name name)
-  "Non-nil if NAME starts with the base name of MEDIA-NAME."
+  "Non-nil if NAME begins with the base name of MEDIA-NAME."
   (string-prefix-p (file-name-sans-extension media-name) name))
 
 (defun subtle-pick--subtitle-p (name)
@@ -61,7 +69,7 @@ DIR-NAMES are the other files in the same directory."
     (cons media
           (and media
                (or (seq-filter #'subtle-pick--subtitle-p selected)
-                   (seq-take (subtle-pick--siblings media dir-names) 2))))))
+                   (seq-take (subtle-pick--siblings media dir-names) subtle-max-subtitles))))))
 
 (defun subtle-pick--media ()
   "Ask for a media file."
@@ -72,7 +80,7 @@ DIR-NAMES are the other files in the same directory."
 
 (defun subtle-pick--read-subs (candidates &optional chosen)
   "Ask for subtitle names from CANDIDATES one by one, after CHOSEN."
-  (let ((name (and (< (length chosen) 2)
+  (let ((name (and (< (length chosen) subtle-max-subtitles)
                    (completing-read
                     (format "Subtitle %d (RET to finish): " (1+ (length chosen)))
                     (seq-difference candidates chosen)))))

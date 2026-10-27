@@ -1,0 +1,52 @@
+#+title: subtle
+
+Read subtitles in Emacs while [[https://mpv.io][mpv]] plays the media.
+
+subtle plays an audio or video file in mpv and shows each subtitle file
+(=.srt= or =.vtt=, up to two at once) as read-only text in Emacs.  The cue
+being spoken is highlighted and the text follows the audio.  It is made for
+studying a language from films, podcasts and lectures.
+
+* Requirements
+
+- Emacs 29.1 or later.
+- mpv on your =PATH= (or set =subtle-mpv-executable=).  Windows is not
+  supported.
+
+* Installation
+
+#+begin_src emacs-lisp
+(use-package subtle
+  :ensure t
+  :commands (subtle-open subtle-dired-open subtle-bookmark-jump)
+  :bind (:map dired-mode-map ("C-c s" . subtle-dired-open)))
+#+end_src
+
+From a checkout, use =:load-path "~/path/to/subtle"= instead of =:ensure=,
+or =M-x package-vc-install=.
+
+* Quick start
+
+=M-x subtle-open=, pick a media file and one or two subtitle files, and
+read along.  Press =h= for the keys and =q= to quit.
+
+* Documentation
+
+- [[file:subtle-tutorial.org][Tutorial]] (=M-x subtle-tutorial=): a first session and a first
+  configuration.
+- [[file:subtle-manual.org][Manual]] (=M-x subtle-manual=, or =C-h i d m subtle=): every option,
+  command, hook and face, and the public API.
+
+* Development
+
+#+begin_src sh
+make compile   # byte-compile, warnings are errors
+make checkdoc  # docstring conventions
+make test      # ERT suite
+make lint      # package-lint (must be installed)
+make info      # build subtle.info from the manual
+#+end_src
+
+* License
+
+GPL-3.0-or-later; see =LICENSE=.

@@ -1,0 +1,7 @@
+*.elc
+*~
+\#*\#
+.#*
+/subtle-manual-rendered.*
+/dist/
+/melpa-recipe.draft

@@ -1,0 +1,155 @@
+#+title: Subtle tutorial
+\<subtle-mode-map>
+
+This is a short walk through subtle for a new user.  It takes about ten
+minutes.  The manual (=M-x subtle-manual=) lists everything; this
+tutorial only shows what you need to get going.
+
+* The lay of the land
+
+subtle plays an audio or video file in [[https://mpv.io][mpv]] and shows its
+subtitles in Emacs as ordinary read-only text.  You hear (and see) the
+media in mpv; you read in Emacs.  The cue being spoken is highlighted, and
+the text follows the audio.
+
+It is made for studying a language from films, podcasts and lectures, so
+a few things are done on purpose:
+
+- The text stays still until the page needs turning.  You can look at a
+  word without it running away.
+- If you scroll by hand, the autoscroll pauses by itself and a small notice
+  tells you how to bring it back.
+- You can open two subtitle files at once, side by side: the language you
+  study and one you know.
+- Layouts such as paragraphs turn cue fragments into running text.
+
+You need Emacs 29.1 or later and mpv on your =PATH=.
+
+* Your first session
+
+1. Run =M-x subtle-open=.  Pick a media file, then one or two subtitle
+   files (=.srt= or =.vtt=).
+2. Or do it from Dired: put point on the media file (or mark the media and
+   its subtitles) and run =M-x subtle-dired-open=.  Subtitles named like
+   the media file (=film.mkv= and =film.sl.srt=) are found for you.
+3. mpv starts and the subtitles appear.  Read along.
+4. Press =\[subtle-help]= for a box listing every key.  Press
+   =\[subtle-quit]= to quit; it asks before it closes anything.
+
+* The keys
+
+All keys are single letters, so they also work in a modal editor's motion
+state.  The ones you will use every minute:
+
+| Key                         | What it does                      |
+|-----------------------------+-----------------------------------|
+| =\[subtle-toggle-pause]=         | pause or resume                   |
+| =\[subtle-seek-backward]= and =\[subtle-seek-forward]=   | skip back and forward             |
+| =\[subtle-previous-cue]= and =\[subtle-next-cue]=   | previous and next cue             |
+| =\[subtle-seek-to-cue-at-point]=  | play from the cue at point        |
+| =\[subtle-slower]= and =\[subtle-faster]=   | slower and faster                 |
+| ~\[subtle-reset-speed]~          | back to normal speed              |
+| =\[subtle-resume-follow]=        | make the text follow the audio again |
+| =\[subtle-help]=                 | show the help box                 |
+| =\[subtle-quit]=                 | quit                              |
+
+The rarer commands sit behind a prefix key: swap the two windows with
+=\[subtle-swap-sides]=, choose the layout with =\[subtle-set-layout]=,
+change any option with =\[subtle-set-option]=, and toggle automatic
+resume with =\[subtle-toggle-auto-resume]=.
+
+** Scrolling by hand
+
+Scroll the way you always do.  Autoscroll pauses and a notice appears.  It
+resumes by itself after a few seconds, or at once when you press
+=\[subtle-resume-follow]=.  Nothing ever moves the text under you unless the
+spoken cue has left the screen.
+
+* Trying options live
+
+Open a session, then press =\[subtle-set-option]=.  It asks for an option and a
+value, and the open session changes at once.  Try =subtle-text-scale= with
+1.6, or =subtle-layout= with =paragraph-flow=.  Use =\[subtle-set-layout]= as a shortcut
+for the layout.
+
+What you set this way lasts for the Emacs session.  To keep it, put it in
+your configuration.
+
+* A first configuration
+
+Options are ordinary Emacs variables.  They live in the =subtle=
+customization group, so =M-x customize-group RET subtle= works too.  A
+handful worth knowing:
+
+#+begin_src emacs-lisp
+(setopt subtle-text-scale 1.5        ; bigger text (1.0 is your normal size)
+        subtle-layout 'paragraph-flow ; running text instead of one cue per line
+        subtle-resume-delay 10       ; wait 10 seconds before autoscroll resumes
+        subtle-seek-small 10         ; the skip keys jump 10 seconds
+        subtle-speed-step 0.1        ; finer speed steps
+        subtle-move-point 'never)    ; the cursor stays on the word you study
+#+end_src
+
+Use =setopt= (Emacs 29) so a change in a running session takes effect at
+once.  With plain =setq= the new value is used from the next session.
+
+** Layouts
+
+=subtle-layout= decides how cues are arranged:
+
+- =single-spaced= (the default) is one cue per line.
+- =double-spaced= puts a blank line between cues.
+- =sentence= breaks the line after each sentence.
+- =paragraph-flow= is running text, broken at paragraph breaks.
+- =paragraph-pause= is the same, and playback pauses at each break so you
+  can catch up.
+
+** Your own keys
+
+The keymap is =subtle-mode-map=.  Bind what you like; the strip at the top
+and the help box show your keys automatically.
+
+#+begin_src emacs-lisp
+(with-eval-after-load 'subtle
+  (keymap-set subtle-mode-map "SPC" #'subtle-toggle-pause))
+#+end_src
+
+* Hooks
+
+Hooks let your own code join in.  Two you may want soon:
+
+#+begin_src emacs-lisp
+;; Announce each session.
+(add-hook 'subtle-open-hook
+          (lambda () (message "Reading with subtle")))
+
+;; Run something in every subtitle buffer, e.g. a different font.
+(add-hook 'subtle-buffer-setup-hook
+          (lambda () (setq-local line-spacing 0.3)))
+#+end_src
+
+The manual lists them all, with the arguments they pass.
+
+* A complete setup
+
+#+begin_src emacs-lisp
+(use-package subtle
+  :ensure t
+  :commands (subtle-open subtle-dired-open subtle-bookmark-jump)
+  :bind (:map dired-mode-map ("C-c s" . subtle-dired-open))
+  :custom
+  (subtle-text-scale 1.4)
+  (subtle-layout 'paragraph-flow)
+  (subtle-resume-delay 8)
+  :config
+  (keymap-set subtle-mode-map "SPC" #'subtle-toggle-pause))
+#+end_src
+
+* Where to go next
+
+- =M-x subtle-manual= for every option, command, hook and face, and for
+  the functions you can call from your own code.
+- The Info manual: =C-h i d m subtle RET=.
+- =M-x bookmark-set= in a subtle buffer saves your place: media,
+  subtitles and time.  Jumping to it reopens them a few seconds earlier, paused; set
+  =subtle-bookmark-autoplay= to start playing at once.

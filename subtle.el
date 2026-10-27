@@ -1,64 +1,82 @@
 ;;; subtle.el --- Read subtitles in Emacs while mpv plays -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 smdi
-;; Version: 0.1
+
+;; Author: smdi <you@example.com>
+;; Maintainer: smdi <you@example.com>
+;; Version: 0.1.0
 ;; Package-Requires: ((emacs "29.1"))
-;; Keywords: multimedia
+;; Keywords: multimedia, convenience
+;; URL: https://github.com/YOUR-NAME/subtle
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is not part of GNU Emacs.
+
+;; This program is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
-;; M-x subtle-open picks a media file and up to two subtitle files,
-;; plays the media in mpv, and shows each subtitle track as read-only
-;; text with the spoken cue highlighted and kept at 2/3 of the window.
-;; Scrolling by hand pauses the autoscroll; it resumes after
-;; `subtle-resume-delay' seconds or when you press r.
+;; subtle plays media in mpv and shows its subtitle files (SRT or VTT,
+;; up to two) as read-only text in Emacs, with the spoken cue
+;; highlighted.  It is made for studying a language from films,
+;; podcasts and lectures.
+;;
+;; Start with `M-x subtle-open', or `subtle-dired-open' from Dired.
+;; The text stays still until the spoken cue nears the bottom of the
+;; window (or leaves the top), then the page turns.  Scrolling by hand
+;; pauses the autoscroll; it resumes after `subtle-resume-delay'
+;; seconds or when you press r.  Autoscroll never moves the window
+;; while the cue is on screen and clear of the margins, whether playback
+;; is paused or not.
 ;;
 ;; Keys are single letters (rarer ones follow the prefix s) so they work
-;; in meow's motion state; press h for the full list, q to quit.  See `subtle-controls'.
+;; in a modal editor's motion state; press h for the full list, q to
+;; quit.  The keys are in `subtle-mode-map'; bind your own with
+;; `keymap-set'.  Layouts, cue and paragraph filling, margins and
+;; everything else are options of the `subtle' group; `M-x subtle-tutorial'
+;; and `M-x subtle-manual' (also subtle.info) describe them.
+;;
+;; Requires mpv.  Other packages, such as bltzread (word annotation),
+;; connect to subtle through its hooks; subtle never loads them.
 
 ;;; Code:
 
 (require 'subtle-custom)
+(require 'subtle-session)
 (require 'subtle-track)
 (require 'subtle-parse)
 (require 'subtle-mpv)
 (require 'subtle-layout)
+(require 'subtle-keys)
 (require 'subtle-ui)
+(require 'subtle-point-track)
 (require 'subtle-pick)
+(require 'subtle-doc)
+(require 'wid-edit)
+(require 'cus-edit)
 
 (declare-function dired-get-marked-files "dired")
 (declare-function bookmark-prop-get "bookmark")
 
 ;;; Sending to mpv
 
-(declare-function bltzread-popup-visible-p "bltzread-popup")
-(declare-function bltzread-popup-anchor "bltzread")
-(declare-function bltzread-dismiss-popup "bltzread")
-
-(declare-function bltzread-offer-record "bltzread")
-(declare-function bltzread-popup-hide "bltzread-popup")
-(defvar bltzread-mode)
-
-(defun subtle--offer-reading-records ()
-  "Let bltzread ask about every buffer of the closing session that has it on."
-  (dolist (buffer (and subtle--session (subtle-session-buffers subtle--session)))
-    (when (and (buffer-live-p buffer) (buffer-local-value 'bltzread-mode buffer))
-      (with-current-buffer buffer (bltzread-offer-record)))))
-
-(with-eval-after-load 'bltzread
-  ;; bltzread's word card holds the text still, anchors the page, and closes on request.
-  (add-hook 'subtle-hold-functions #'bltzread-popup-visible-p)
-  (add-hook 'subtle-anchor-functions #'bltzread-popup-anchor)
-  (add-hook 'subtle-dismiss-functions #'bltzread-dismiss-popup)
-  (add-hook 'subtle-before-close-hook #'subtle--offer-reading-records)
-  (add-hook 'subtle-close-hook #'bltzread-popup-hide))
-
 (defun subtle--send (&rest args)
   "Send the mpv command ARGS to the active session."
-  (apply #'subtle-mpv-send (subtle-session-mpv (subtle-ui-session)) args))
+  (apply #'subtle-mpv-send (subtle-session-mpv (subtle-require-session)) args))
 
 (defun subtle--seek-relative (seconds)
-  "Skip SECONDS (negative goes back)."
+  "Skip SECONDS (negative: backwards)."
   (subtle--send "seek" seconds "relative"))
 
 (defun subtle--clamp-speed (speed)
@@ -73,13 +91,13 @@
 
 (defun subtle--change-speed (delta)
   "Add DELTA to the playback speed."
-  (subtle--set-speed (+ delta (subtle-session-speed (subtle-ui-session)))))
+  (subtle--set-speed (+ delta (subtle-session-speed (subtle-require-session)))))
 
 (defun subtle--jump (finder)
-  "Seek to the time FINDER returns for the current track and position."
-  (let* ((session (subtle-ui-session))
+  "Seek to the time that FINDER gives for the current track and position."
+  (let* ((session (subtle-require-session))
          (target (funcall finder
-                          (subtle-ui-current-track session)
+                          (subtle-current-track session)
                           (subtle-session-position session))))
     (if target
         (subtle--send "seek" target "absolute")
@@ -133,19 +151,24 @@
   (subtle--jump #'subtle-track-next-start))
 
 (defun subtle-previous-cue ()
-  "Jump to this or the previous subtitle."
+  "Jump to this or the previous subtitle.
+Within `subtle-previous-cue-restart' seconds of a cue's start, go to the
+one before it."
   (interactive)
-  (subtle--jump #'subtle-track-previous-start))
+  (subtle--jump (lambda (track time)
+                  (subtle-track-previous-start
+                   track time subtle-previous-cue-restart))))
 
 (defun subtle-seek-to-cue-at-point ()
   "Play from the subtitle under point."
   (interactive)
-  (subtle--send "seek" (subtle-cue-start (subtle-ui-cue-at-point)) "absolute"))
+  (subtle--send "seek" (subtle-cue-start (subtle-cue-at-point)) "absolute"))
 
 (defun subtle-quit ()
   "Close what is on screen (a card, the notice box), else quit (asks y/n)."
   (interactive)
-  (cond ((run-hook-with-args-until-success 'subtle-dismiss-functions))
+  (cond ((eq (subtle-popup-kind) 'help) (subtle-popup-hide 'help))
+        ((run-hook-with-args-until-success 'subtle-dismiss-functions))
         ((subtle-popup-visible-p) (subtle-popup-hide))
         ((or (not subtle-confirm-quit) (y-or-n-p "Close subtle? "))
          (subtle-close))))
@@ -164,82 +187,65 @@
 
 ;;; Setting options
 
-(defconst subtle--options
-  '(subtle-layout subtle-paragraph-source subtle-paragraph-gap
-    subtle-paragraph-pause subtle-popup-style subtle-text-scale
-    subtle-resume-delay subtle-auto-resume subtle-focus-ratio)
-  "Options offered by `subtle-set-option'.")
+(defun subtle--option-members (group)
+  "Options of GROUP and of its sub-groups, except hooks and faces."
+  (mapcan (lambda (member)
+            (pcase member
+              (`(,(or 'subtle-hooks 'subtle-faces) custom-group) nil)
+              (`(,name custom-group) (subtle--option-members name))
+              (`(,name custom-variable) (list name))))
+          (custom-group-members group nil)))
 
 (defun subtle--choices (option)
-  "Symbols OPTION may take, from its `choice' type, or nil if it is not one."
+  "Values OPTION may take if its type is a `choice' of constants, else nil."
   (let ((type (get option 'custom-type)))
     (and (eq (car-safe type) 'choice)
-         (delq nil (mapcar (lambda (item) (and (eq (car-safe item) 'const) (nth 1 item)))
-                           (cdr type))))))
+         (seq-every-p (lambda (item) (eq (car-safe item) 'const)) (cdr type))
+         (mapcar (lambda (item) (car (last item))) (cdr type)))))
 
-(defconst subtle--prompts
-  '((subtle-paragraph-gap . "Start a new paragraph after this much silence (s)")
-    (subtle-paragraph-pause . "Pause the audio this long at a paragraph end (s)"))
-  "Plain-language prompts for options whose names are easy to mix up.")
+(defun subtle--read-choice (prompt choices)
+  "Ask with PROMPT for one of the CHOICES (any values), return it."
+  (let* ((names (mapcar (lambda (choice) (format "%S" choice)) choices))
+         (answer (completing-read prompt names nil t)))
+    (nth (seq-position names answer) choices)))
 
-(defun subtle--prompt (option current)
-  "Prompt text asking for OPTION, showing CURRENT."
-  (format "%s [%s] (now %s): "
-          (or (alist-get option subtle--prompts) option) option current))
+(defun subtle--read-typed (prompt option)
+  "Read a Lisp value for OPTION until it matches the type of OPTION.
+PROMPT is shown, with the current value as the initial input."
+  (let ((type (widget-convert (get option 'custom-type)))
+        (value (read-minibuffer prompt (format "%S" (symbol-value option)))))
+    (while (not (widget-apply type :match value))
+      (setq value (read-minibuffer "Wrong type; again: " (format "%S" value))))
+    value))
 
 (defun subtle--read-value (option)
   "Ask for a new value of OPTION: a menu for choices, else by type."
-  (let ((current (symbol-value option)))
+  (let ((prompt (format "%s (now %S): " option (symbol-value option))))
     (cond ((subtle--choices option)
-           (intern (completing-read
-                    (subtle--prompt option current)
-                    (mapcar #'symbol-name (subtle--choices option)) nil t nil nil
-                    (symbol-name current))))
-          ((booleanp current)
-           (intern (completing-read (subtle--prompt option current) '("t" "nil") nil t)))
-          (t (read-number (subtle--prompt option current) current)))))
+           (subtle--read-choice prompt (subtle--choices option)))
+          ((eq (get option 'custom-type) 'boolean)
+           (y-or-n-p (format "%s on? " option)))
+          (t (subtle--read-typed prompt option)))))
 
-(defun subtle--apply-option (option value)
-  "Set OPTION to VALUE for this Emacs session and refresh what is on screen."
-  (customize-set-variable option value)
-  (when-let* ((session subtle--session))
-    (if (memq option '(subtle-layout subtle-paragraph-source subtle-paragraph-gap
-                       subtle-text-scale))
-        (subtle-ui-rebuild session)
-      (subtle-ui-sync-popup)))
-  (message "%s is now %s" option value))
-
-(defun subtle-set-option (option)
-  "Change one subtle OPTION, choosing its value from a menu or prompt.
-Applies at once to an open session; lasts for this Emacs session.  Use
-\[customize-option] to make a change permanent."
+(defun subtle-set-option (option value)
+  "Set a subtle option, asking which one and its value.
+Sets OPTION to VALUE.  Applies at once to an open session, through the
+`:set' function of the option, and lasts for this Emacs session.  Use
+\\[customize-option] to make a change permanent."
   (interactive
-   (list (intern (completing-read "Subtle option: "
-                                  (mapcar #'symbol-name subtle--options) nil t))))
-  (subtle--apply-option option (subtle--read-value option)))
+   (let ((option (intern (completing-read
+                          "Subtle option: "
+                          (mapcar #'symbol-name (subtle--option-members 'subtle))
+                          nil t))))
+     (list option (subtle--read-value option))))
+  (customize-set-variable option value)
+  (message "%s is now %S" option value))
 
-(defmacro subtle--define-setter (name option doc)
-  "Define the command NAME that changes OPTION; DOC is its docstring."
-  `(defun ,name ()
-     ,doc
-     (interactive)
-     (subtle--apply-option ',option (subtle--read-value ',option))))
-
-(subtle--define-setter subtle-set-layout subtle-layout
-  "Choose how subtitle text is laid out (single-spaced, sentence, paragraphs...).")
-(subtle--define-setter subtle-set-paragraph-source subtle-paragraph-source
-  "Choose what counts as a paragraph break.")
-(subtle--define-setter subtle-set-popup-style subtle-popup-style
-  "Choose how the \"autoscroll paused\" notice is shown.")
-(subtle--define-setter subtle-set-paragraph-pause subtle-paragraph-pause
-  "Set how long the audio pauses at a paragraph end.
-This does not change where paragraphs break; see `subtle-set-paragraph-gap'.")
-(subtle--define-setter subtle-set-paragraph-gap subtle-paragraph-gap
-  "Set how much silence between cues starts a new paragraph.
-Smaller means shorter paragraphs.  Needs `subtle-paragraph-source' to be
-`explicit-and-gap' and a paragraph layout.")
-(subtle--define-setter subtle-set-text-scale subtle-text-scale
-  "Set the size of subtitle text.")
+(defun subtle-set-layout (layout)
+  "Choose how subtitle text is laid out.
+LAYOUT is a value of `subtle-layout': single-spaced, sentence, paragraphs..."
+  (interactive (list (subtle--read-value 'subtle-layout)))
+  (subtle-set-option 'subtle-layout layout))
 
 ;;; Opening
 
@@ -248,17 +254,18 @@ Smaller means shorter paragraphs.  Needs `subtle-paragraph-source' to be
   (pcase message
     (`(time-pos . ,(and time (pred numberp))) (subtle-ui-tick session time))
     (`(pause . ,paused) (subtle-ui-set-paused session paused))
-    (`(speed . ,(and speed (pred numberp))) (subtle-ui-set-speed session speed))))
+    (`(speed . ,(and speed (pred numberp))) (subtle-ui-set-speed session speed)))
+  (run-hook-with-args 'subtle-mpv-message-functions session message))
 
 (defun subtle--exited (session)
-  "mpv went away: close SESSION if it is still the active one."
+  "Close SESSION if it is still the active one, since mpv went away."
   (when (eq session subtle--session)
     (message "subtle: mpv exited")
     ;; not from the process sentinel: closing may ask questions
     (run-at-time 0 nil (lambda () (when (eq session subtle--session) (subtle-close))))))
 
 (defun subtle--url-p (string)
-  "Non-nil if STRING looks like a URL rather than a file."
+  "Non-nil if STRING resembles a URL rather than a file."
   (string-match-p "\\`[a-z]+://" string))
 
 (defun subtle--validate (media subs)
@@ -267,8 +274,9 @@ Smaller means shorter paragraphs.  Needs `subtle-paragraph-source' to be
     (user-error "Cannot find mpv (%s)" subtle-mpv-executable))
   (unless (or (subtle--url-p media) (file-exists-p media))
     (user-error "No such media: %s" media))
-  (when (> (length subs) 2)
-    (user-error "At most two subtitle files, got %d" (length subs)))
+  (when (> (length subs) subtle-max-subtitles)
+    (user-error "At most %d subtitle files, got %d"
+                subtle-max-subtitles (length subs)))
   (dolist (sub subs)
     (unless (file-readable-p sub)
       (user-error "Cannot read subtitles: %s" sub))))
@@ -285,7 +293,8 @@ Smaller means shorter paragraphs.  Needs `subtle-paragraph-source' to be
 
 ;;;###autoload
 (defun subtle-open (media &rest subs)
-  "Play MEDIA with mpv, showing the subtitle files SUBS (at most two)."
+  "Play MEDIA with mpv, showing the subtitle files SUBS (at most two).
+Runs `subtle-open-hook' once the session is up."
   (interactive (subtle-pick-args))
   (subtle--validate media subs)
   (subtle-close)
@@ -299,6 +308,7 @@ Smaller means shorter paragraphs.  Needs `subtle-paragraph-source' to be
                              (lambda () (subtle--exited session))))
     (setf (subtle-session-send session)
           (apply-partially #'subtle-mpv-send (subtle-session-mpv session)))
+    (run-hooks 'subtle-open-hook)
     session))
 
 ;;; Bookmarks
@@ -307,7 +317,7 @@ Smaller means shorter paragraphs.  Needs `subtle-paragraph-source' to be
 
 (defun subtle-bookmark-make-record ()
   "Bookmark record for the open session: media, subtitles and playback time."
-  (let ((session (subtle-ui-session)))
+  (let ((session (subtle-require-session)))
     `(,(file-name-base (subtle-session-media session))
       (media . ,(subtle-session-media session))
       (subs . ,(subtle-session-subs session))
@@ -316,11 +326,15 @@ Smaller means shorter paragraphs.  Needs `subtle-paragraph-source' to be
 
 ;;;###autoload
 (defun subtle-bookmark-jump (bookmark)
-  "Reopen the media of BOOKMARK a few seconds before where it was left."
+  "Reopen the media of BOOKMARK, `subtle-bookmark-rewind' seconds earlier.
+It starts paused unless `subtle-bookmark-autoplay' is non-nil."
   (require 'bookmark)
-  (let* ((start (max 0 (- (or (bookmark-prop-get bookmark 'time) 0) 3)))
+  (let* ((start (max 0 (- (or (bookmark-prop-get bookmark 'time) 0)
+                    subtle-bookmark-rewind)))
          (subtle-mpv-extra-args
-          (append subtle-mpv-extra-args (list (format "--start=%s" start)))))
+          (append subtle-mpv-extra-args
+                  (list (format "--start=%s" start))
+                  (unless subtle-bookmark-autoplay (list "--pause")))))
     (apply #'subtle-open (bookmark-prop-get bookmark 'media)
            (bookmark-prop-get bookmark 'subs))))
 

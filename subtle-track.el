@@ -1,5 +1,12 @@
 ;;; subtle-track.el --- Cues, tracks and time lookup -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 smdi
+
+;; Author: smdi <you@example.com>
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is part of subtle; see subtle.el for the license notice.
+
 ;;; Commentary:
 
 ;; Pure data and functions.  A track is a vector of cues sorted by start
@@ -10,6 +17,13 @@
 
 (require 'cl-lib)
 
+(defconst subtle-max-subtitles 2
+  "Most subtitle files subtle shows at once.")
+
+(defconst subtle-track-seek-threshold 1.0
+  "Seconds of media a position may advance by and still count as playing.
+A bigger step is a seek, not playback.")
+
 (cl-defstruct (subtle-cue (:constructor subtle-cue-create))
   start end text
   ;; Non-nil when the file itself marks a paragraph break after this cue.
@@ -19,7 +33,8 @@
   cues starts)
 
 (defun subtle-track--before (starts time &optional lo hi)
-  "Index of the last element of STARTS that is <= TIME, or -1."
+  "Find the last index whose time is <= TIME, or -1.
+STARTS is the sorted vector of times.  Optional LO and HI bound the search."
   (let ((lo (or lo 0))
         (hi (or hi (length starts))))
     (if (>= lo hi)
@@ -48,11 +63,12 @@ With HOLD, the latest started cue counts even after it ended."
     (and (< next (length starts))
          (aref starts next))))
 
-(defun subtle-track-previous-start (track time)
-  "Start of the cue to return to from TIME, or 0.0 when there is none.
-A cue that began more than a second ago restarts; otherwise the one before."
+(defun subtle-track-previous-start (track time &optional restart)
+  "Start of the cue of TRACK to return to from TIME, or 0.0 when there is none.
+A cue that began more than RESTART seconds ago (default 1.0) restarts;
+otherwise the one before."
   (let* ((starts (subtle-track-starts track))
-         (index (subtle-track--before starts (- time 1.0))))
+         (index (subtle-track--before starts (- time (or restart 1.0)))))
     (if (>= index 0)
         (aref starts index)
       0.0)))

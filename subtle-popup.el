@@ -1,10 +1,22 @@
 ;;; subtle-popup.el --- Boxed "autoscroll paused" notice -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 smdi
+
+;; Author: smdi <you@example.com>
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is part of subtle; see subtle.el for the license notice.
+
 ;;; Commentary:
 
 ;; A bordered, coloured box.  In a graphical Emacs it floats in a child
 ;; frame near the top centre; in a terminal it fills a bottom side window.
 ;; The box itself is a pure string built from rows.
+;;
+;; NOTE: bltzread-popup.el, in the sibling bltzread package, is a near
+;; duplicate of this file (same box, same child frame).  Which package
+;; should own the code is undecided; until then, keep the two in step
+;; by hand and do not merge them.
 
 ;;; Code:
 
@@ -29,24 +41,44 @@
     (add-face-text-property 0 (length copy) 'subtle-popup t copy)
     copy))
 
+(defconst subtle-popup--glyphs
+  '((unicode :top-left "╭" :top-right "╮" :bottom-left "╰" :bottom-right "╯"
+             :across "─" :down "│")
+    (ascii :top-left "+" :top-right "+" :bottom-left "+" :bottom-right "+"
+           :across "-" :down "|"))
+  "Border characters by `subtle-popup-box-style'.")
+
+(defun subtle-popup--glyph (part)
+  "Border character for PART in the style of `subtle-popup-box-style'."
+  (plist-get (or (alist-get subtle-popup-box-style subtle-popup--glyphs)
+                 (alist-get 'unicode subtle-popup--glyphs))
+             part))
+
+(defun subtle-popup--border (text)
+  "TEXT in the border face."
+  (propertize text 'face 'subtle-popup-border))
+
 (defun subtle-popup--row (text width)
   "One boxed row holding TEXT padded to WIDTH."
-  (concat (propertize "│" 'face 'subtle-popup-border)
+  (concat (subtle-popup--border (subtle-popup--glyph :down))
           (subtle-popup--body (concat " " (subtle-popup--pad text width) " "))
-          (propertize "│" 'face 'subtle-popup-border)))
+          (subtle-popup--border (subtle-popup--glyph :down))))
 
 (defun subtle-popup--edge (left right width)
   "Top or bottom edge made of LEFT, a horizontal rule of WIDTH, and RIGHT."
-  (propertize (concat left (make-string (+ width 2) ?─) right)
-              'face 'subtle-popup-border))
+  (subtle-popup--border
+   (concat left (apply #'concat (make-list (+ width 2) (subtle-popup--glyph :across)))
+           right)))
 
 (defun subtle-popup-box (rows)
   "ROWS (strings) drawn inside a box, as one multi-line string."
   (let ((width (apply #'max (mapcar #'string-width rows))))
     (string-join
-     (append (list (subtle-popup--edge "╭" "╮" width))
+     (append (list (subtle-popup--edge (subtle-popup--glyph :top-left)
+                                       (subtle-popup--glyph :top-right) width))
              (mapcar (lambda (row) (subtle-popup--row row width)) rows)
-             (list (subtle-popup--edge "╰" "╯" width)))
+             (list (subtle-popup--edge (subtle-popup--glyph :bottom-left)
+                                       (subtle-popup--glyph :bottom-right) width)))
      "\n")))
 
 (defun subtle-popup-title (text)
@@ -59,9 +91,9 @@
 
 ;;; Showing
 
-(defun subtle-popup--fill-buffer (box)
-  "Put BOX in the popup buffer and return the buffer."
-  (with-current-buffer (get-buffer-create subtle-popup--buffer)
+(defun subtle-popup--fill-buffer (box &optional name)
+  "Put BOX in the popup buffer, or the one called NAME, and return the buffer."
+  (with-current-buffer (get-buffer-create (or name subtle-popup--buffer))
     (let ((inhibit-read-only t))
       (erase-buffer)
       (insert box))
@@ -69,8 +101,9 @@
                 truncate-lines t)
     (current-buffer)))
 
-(defun subtle-popup--frame-parameters (parent box)
-  "Parameters of a borderless, unfocusable child frame of PARENT fitting BOX."
+(defun subtle-popup--default-parameters (parent box)
+  "Default parameters of a borderless, unfocusable child frame of PARENT.
+It is sized to fit BOX."
   `((parent-frame . ,parent)
     (width . ,(+ 4 (apply #'max (mapcar #'string-width (split-string box "\n")))))
     (height . ,(length (split-string box "\n"))) (name . "subtle") (minibuffer . nil)
@@ -81,6 +114,27 @@
     (left-fringe . 0) (right-fringe . 0) (vertical-scroll-bars . nil)
     (horizontal-scroll-bars . nil) (cursor-type . nil)))
 
+(defun subtle-popup--frame-parameters (parent box)
+  "Parameters of the child frame of PARENT fitting BOX.
+The entries of `subtle-popup-frame-parameters' win over the defaults."
+  (append subtle-popup-frame-parameters
+          (seq-remove (lambda (parameter)
+                        (assq (car parameter) subtle-popup-frame-parameters))
+                      (subtle-popup--default-parameters parent box))))
+
+(defun subtle-popup-make-frame (box &optional name)
+  "Make an invisible child frame of the selected frame showing BOX.
+The text goes into a buffer called NAME (default the popup buffer).
+Place it with `set-frame-position', then `make-frame-visible'.
+Other subtle files use this for their own floating labels."
+  (let* ((buffer (subtle-popup--fill-buffer box name))
+         (frame (make-frame (subtle-popup--frame-parameters
+                             (selected-frame) box)))
+         (window (frame-root-window frame)))
+    (set-window-buffer window buffer)
+    (set-window-dedicated-p window t)
+    frame))
+
 (defun subtle-popup--place (frame parent)
   "Centre FRAME horizontally near the top of PARENT."
   (set-frame-position
@@ -88,13 +142,10 @@
    (max 0 (/ (- (frame-pixel-width parent) (frame-pixel-width frame)) 2))
    (round (* 0.06 (frame-pixel-height parent)))))
 
-(defun subtle-popup--show-frame (buffer box)
-  "Float BUFFER, showing BOX, in a child frame."
-  (let* ((parent (selected-frame))
-         (frame (make-frame (subtle-popup--frame-parameters parent box))))
-    (set-window-buffer (frame-root-window frame) buffer)
-    (set-window-dedicated-p (frame-root-window frame) t)
-    (subtle-popup--place frame parent)
+(defun subtle-popup--show-frame (box)
+  "Float BOX in a child frame near the top of the selected frame."
+  (let ((frame (subtle-popup-make-frame box)))
+    (subtle-popup--place frame (selected-frame))
     (make-frame-visible frame)
     (setq subtle-popup--frame frame)))
 
@@ -106,7 +157,7 @@
             (window-parameters . ((no-other-window . t))))))
 
 (defun subtle-popup--style (kind)
-  "Display style for a notice of KIND; help always uses the box."
+  "Display style for a notice of KIND; help always takes the box."
   (if (eq kind 'help) 'box subtle-popup-style))
 
 (defun subtle-popup-show (rows &optional kind)
@@ -114,11 +165,11 @@
   (subtle-popup-hide)
   (setq subtle-popup--kind (or kind 'notice))
   (pcase (subtle-popup--style subtle-popup--kind)
-    ('box (let* ((box (subtle-popup-box rows))
-                (buffer (subtle-popup--fill-buffer box)))
+    ('box (let ((box (subtle-popup-box rows)))
             (if (display-graphic-p)
-                (subtle-popup--show-frame buffer box)
-              (subtle-popup--show-side-window buffer))))
+                (subtle-popup--show-frame box)
+              (subtle-popup--show-side-window
+               (subtle-popup--fill-buffer box)))))
     ('echo-area (message "%s" (string-join rows "   ")))))
 
 (defun subtle-popup-kind ()
