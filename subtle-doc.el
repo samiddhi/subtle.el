@@ -13,11 +13,13 @@
 ;; placeholders, with \<subtle-mode-map> at the top.  Showing one runs
 ;; it through `substitute-command-keys', so you read the keys you
 ;; really have.  The Makefile renders the manual the same way, with the
-;; default keys, before turning it into subtle.info.
+;; default keys, before turning it into subtle.info, which holds the tutorial
+;; as its last chapter (`subtle-doc-render-info-file').
 
 ;;; Code:
 
 (require 'subtle-keys)
+(require 'subr-x)
 
 (defconst subtle-doc--directory
   (file-name-directory (or load-file-name buffer-file-name))
@@ -40,6 +42,27 @@ Quotes are left as typed, so code in the text is not curled."
   "Write the document NAME, with default keys shown, to the file OUTPUT."
   (with-temp-file output
     (insert (subtle-doc-render (subtle-doc--read name)))))
+
+(defun subtle-doc--demote (text)
+  "TEXT, an Org document, as a chapter: no title lines, headings one level down."
+  (with-temp-buffer
+    (insert text)
+    (goto-char (point-min))
+    (while (looking-at "#\\+\\|[ \t]*$") (forward-line 1))
+    (delete-region (point-min) (point))
+    (while (re-search-forward "^\\*+ " nil t)
+      (goto-char (match-beginning 0))
+      (insert "*")
+      (forward-line 1))
+    (buffer-string)))
+
+(defun subtle-doc-render-info-file (output)
+  "Write the text of the Info manual, with default keys shown, to OUTPUT.
+It is the manual followed by the tutorial as its last chapter."
+  (with-temp-file output
+    (insert (string-trim-right (subtle-doc-render (subtle-doc--read "subtle-manual")))
+            "\n\n* Tutorial\n\n"
+            (subtle-doc--demote (subtle-doc-render (subtle-doc--read "subtle-tutorial"))))))
 
 (defun subtle-doc--show (name title)
   "Show the document NAME in a read-only buffer called TITLE."

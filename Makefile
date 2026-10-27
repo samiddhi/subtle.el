@@ -31,12 +31,13 @@ lint:
 	  --eval "(setq package-lint-main-file \"subtle.el\")" \
 	  -L . -f package-lint-batch-and-exit $(LIBS)
 
-# Rebuild the Info manual: render the key placeholders of the Org source
-# with the default keys, then export.
+# Rebuild the Info manual (the manual, then the tutorial as its last chapter):
+# render the key placeholders of the Org sources with the default keys, then
+# export.
 info:
 	$(EMACS) --batch -L . --eval "(require 'ox-texinfo)" \
 	  --eval "(require 'subtle-doc)" \
-	  --eval "(subtle-doc-render-file \"subtle-manual\" \"$(RENDERED).org\")" \
+	  --eval "(subtle-doc-render-info-file \"$(RENDERED).org\")" \
 	  --eval "(with-current-buffer (find-file-noselect \"$(RENDERED).org\") \
 	    (org-texinfo-export-to-texinfo))" \
 	  && makeinfo --no-split -o subtle.info $(RENDERED).texi; \

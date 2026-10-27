@@ -33,6 +33,7 @@ the default key in the Info version.
 * Hooks::
 * Faces::
 * Extending::
+* Tutorial::
 
 -- The Detailed Node Listing --
 
@@ -53,7 +54,7 @@ Options
 * Playback::
 * Scrolling::
 * Text::
-* Blitz reading::
+* Point tracking::
 * Popups::
 
 Hooks
@@ -69,6 +70,26 @@ Extending
 * Recipe studying at a slow speed::
 * Using subtle with bltzread::
 * Dired::
+
+Tutorial
+
+* The lay of the land::
+* Your first session::
+* The keys::
+* Trying options live::
+* A first configuration::
+* Hooks: Hooks (1).
+* A complete setup::
+* Where to go next::
+
+The keys
+
+* Scrolling by hand::
+
+A first configuration
+
+* Layouts: Layouts (1).
+* Your own keys::
 
 
 File: subtle.info,  Node: Overview,  Next: Quick reference,  Prev: Top,  Up: Top
@@ -176,7 +197,7 @@ Key     Command
 ‘(’     ‘subtle-previous-cue’
 ‘RET’   ‘subtle-seek-to-cue-at-point’
 ‘r’     ‘subtle-resume-follow’
-‘m’     ‘subtle-blitz-toggle’
+‘m’     ‘subtle-point-track-toggle’
 ‘s t’   ‘subtle-toggle-auto-resume’
 ‘s s’   ‘subtle-swap-sides’
 ‘s v’   ‘subtle-set-layout’
@@ -193,15 +214,15 @@ File: subtle.info,  Node: Customization groups,  Prev: Keys,  Up: Quick referenc
 2.2 Customization groups
 ========================
 
-Group                Holds
-------------------------------------------------------------------
-‘subtle’             everything; the other groups are inside it
-‘subtle-playback’    mpv, seeking, speed, files
-‘subtle-scrolling’   autoscroll and the notice
-‘subtle-text’        layout and the look of the text
-‘subtle-blitz’       blitz reading
-‘subtle-hooks’       hooks and extension points
-‘subtle-faces’       faces and the look of popups
+Group                  Holds
+--------------------------------------------------------------------
+‘subtle’               everything; the other groups are inside it
+‘subtle-playback’      mpv, seeking, speed, files
+‘subtle-scrolling’     autoscroll and the notice
+‘subtle-text’          layout and the look of the text
+‘subtle-point-track’   point tracking
+‘subtle-hooks’         hooks and extension points
+‘subtle-faces’         faces and the look of popups
 
 
 File: subtle.info,  Node: Options,  Next: Commands,  Prev: Quick reference,  Up: Top
@@ -221,7 +242,7 @@ rest of the Emacs session; it is a thin wrapper over
 * Playback::
 * Scrolling::
 * Text::
-* Blitz reading::
+* Point tracking::
 * Popups::
 
 
@@ -279,7 +300,7 @@ Option                            Default           Meaning
 ‘subtle-warn-continuous-scroll’   t                 Warn when ‘continuous’ is used with bltzread.
 
 
-File: subtle.info,  Node: Text,  Next: Blitz reading,  Prev: Scrolling,  Up: Options
+File: subtle.info,  Node: Text,  Next: Point tracking,  Prev: Scrolling,  Up: Options
 
 3.3 Text
 ========
@@ -309,29 +330,32 @@ up in ‘subtle-mode-map’, so rebinding a key changes the strip too:
                (subtle-help . "help")))
 
 
-File: subtle.info,  Node: Blitz reading,  Next: Popups,  Prev: Text,  Up: Options
+File: subtle.info,  Node: Point tracking,  Next: Popups,  Prev: Text,  Up: Options
 
-3.4 Blitz reading
-=================
+3.4 Point tracking
+==================
 
-Blitz reading makes point follow the playback: at every new cue it jumps
-to the word a package chose (bltzread: the first unknown one), or to the
-start of the cue when none was chosen.  \m switches it on and off.
-Moving point off the cue pauses it until point is back on the cue.
-Moving point less than ‘subtle-blitz-nav-grace’ seconds before a cue
-change releases it as well, so a word you are just reading is not
-snatched away.  A card that is open when point moves is dismissed, and
-‘subtle-blitz-moved-functions’ then lets a package show something for
-the new word: bltzread opens its card there, so no key is needed.
+Point tracking makes point follow the playback: at every new cue it
+jumps to the word a package chose (bltzread: the first unknown one), or
+to the start of the cue when none was chosen.  \m switches it on and
+off.  Moving point off the cue pauses it (the state is "released") until
+point is back on the cue, or the cue reaches the line point is on; then
+it tracks again without moving point.  A tracking you switched off stays
+off.  Moving point less than ‘subtle-point-track-nav-grace’ seconds
+before a cue change releases it as well, so a word you are just reading
+is not snatched away.  A card that is open when point moves is
+dismissed, and ‘subtle-point-track-moved-functions’ then lets a package
+show something for the new word: bltzread opens its card there, so no
+key is needed.
 
-Option                     Default   Meaning
-----------------------------------------------------------------------------------------------------------
-‘subtle-blitz-follow’      t         Point jumps to the chosen word of each new cue.
-‘subtle-blitz-nav-grace’   0.25      Moving point this many seconds before a cue change releases blitz.
-‘subtle-blitz-indicator’   t         Show a small corner box while blitz is on.
+Option                           Default   Meaning
+-------------------------------------------------------------------------------------------------------------------
+‘subtle-point-track-initially’   t         Point jumps to the chosen word of each new cue.
+‘subtle-point-track-nav-grace’   0.25      Moving point this many seconds before a cue change releases tracking.
+‘subtle-point-track-indicator’   t         Show a small corner box while point tracking is on.
 
 
-File: subtle.info,  Node: Popups,  Prev: Blitz reading,  Up: Options
+File: subtle.info,  Node: Popups,  Prev: Point tracking,  Up: Options
 
 3.5 Popups
 ==========
@@ -407,7 +431,7 @@ Hook                                   Arguments, and what is done with the resu
 ‘subtle-anchor-functions’              none: return a position to keep on screen, or nil.
 ‘subtle-dismiss-functions’             none: close something on screen; the first non-nil wins.
 ‘subtle-cue-point-functions’           BEG END of the cue: return where point should go, or nil.  The first answer wins.
-‘subtle-blitz-moved-functions’         BUFFER POS: blitz reading just moved point to POS; show something about the word there.
+‘subtle-point-track-moved-functions’   BUFFER POS: point tracking just moved point to POS; show something about the word there.
 
 
 File: subtle.info,  Node: Faces,  Next: Extending,  Prev: Hooks,  Up: Top
@@ -415,25 +439,25 @@ File: subtle.info,  Node: Faces,  Next: Extending,  Prev: Hooks,  Up: Top
 6 Faces
 *******
 
-Face                       Styles
-------------------------------------------------------------------------
-‘subtle-current’           the spoken cue
-‘subtle-current-inline’    the spoken cue in running-text layouts
-‘subtle-key’               key names in the control strip
-‘subtle-header-state’      the play or pause state in the header line
-‘subtle-header-label’      the name in the header line
-‘subtle-blitz-indicator’   the text of the blitz indicator
-‘subtle-popup’             body of popup boxes
-‘subtle-popup-border’      border of popup boxes
-‘subtle-popup-title’       titles in popup boxes
-‘subtle-popup-key’         key caps in popup boxes
+Face                             Styles
+------------------------------------------------------------------------------
+‘subtle-current’                 the spoken cue
+‘subtle-current-inline’          the spoken cue in running-text layouts
+‘subtle-key’                     key names in the control strip
+‘subtle-header-state’            the play or pause state in the header line
+‘subtle-header-label’            the name in the header line
+‘subtle-point-track-indicator’   the text of the point tracking indicator
+‘subtle-popup’                   body of popup boxes
+‘subtle-popup-border’            border of popup boxes
+‘subtle-popup-title’             titles in popup boxes
+‘subtle-popup-key’               key caps in popup boxes
 
      (custom-set-faces
       '(subtle-current ((t :background "#335533")))
       '(subtle-popup-border ((t :foreground "#ff5555"))))
 
 
-File: subtle.info,  Node: Extending,  Prev: Faces,  Up: Top
+File: subtle.info,  Node: Extending,  Next: Tutorial,  Prev: Faces,  Up: Top
 
 7 Extending
 ***********
@@ -542,34 +566,262 @@ File: subtle.info,  Node: Dired,  Prev: Using subtle with bltzread,  Up: Extendi
        (keymap-set dired-mode-map "C-c s" #'subtle-dired-open))
 
 
+File: subtle.info,  Node: Tutorial,  Prev: Extending,  Up: Top
+
+8 Tutorial
+**********
+
+This is a short walk through subtle for a new user.  It takes about ten
+minutes.  The manual (‘M-x subtle-manual’) lists everything; this
+tutorial only shows what you need to get going.
+
+* Menu:
+
+* The lay of the land::
+* Your first session::
+* The keys::
+* Trying options live::
+* A first configuration::
+* Hooks: Hooks (1).
+* A complete setup::
+* Where to go next::
+
+
+File: subtle.info,  Node: The lay of the land,  Next: Your first session,  Up: Tutorial
+
+8.1 The lay of the land
+=======================
+
+subtle plays an audio or video file in mpv (https://mpv.io) and shows
+its subtitles in Emacs as ordinary read-only text.  You hear (and see)
+the media in mpv; you read in Emacs.  The cue being spoken is
+highlighted, and the text follows the audio.
+
+   It is made for studying a language from films, podcasts and lectures,
+so a few things are done on purpose:
+
+   • The text stays still until the page needs turning.  You can look at
+     a word without it running away.
+   • If you scroll by hand, the autoscroll pauses by itself and a small
+     notice tells you how to bring it back.
+   • You can open two subtitle files at once, side by side: the language
+     you study and one you know.
+   • Layouts such as paragraphs turn cue fragments into running text.
+
+   You need Emacs 29.1 or later and mpv on your ‘PATH’.
+
+
+File: subtle.info,  Node: Your first session,  Next: The keys,  Prev: The lay of the land,  Up: Tutorial
+
+8.2 Your first session
+======================
+
+  1. Run ‘M-x subtle-open’.  Pick a media file, then one or two subtitle
+     files (‘.srt’ or ‘.vtt’).
+  2. Or do it from Dired: put point on the media file (or mark the media
+     and its subtitles) and run ‘M-x subtle-dired-open’.  Subtitles
+     named like the media file (‘film.mkv’ and ‘film.sl.srt’) are found
+     for you.
+  3. mpv starts and the subtitles appear.  Read along.
+  4. Press ‘?’ for a box listing every key.  Press ‘q’ to quit; it asks
+     before it closes anything.
+
+
+File: subtle.info,  Node: The keys,  Next: Trying options live,  Prev: Your first session,  Up: Tutorial
+
+8.3 The keys
+============
+
+All keys are single letters, so they also work in a modal editor's
+motion state.  The ones you will use every minute:
+
+Key           What it does
+-----------------------------------------------------
+‘p’           pause or resume
+‘b’ and ‘f’   skip back and forward
+‘(’ and ‘)’   previous and next cue
+‘RET’         play from the cue at point
+‘{’ and ‘}’   slower and faster
+‘=’           back to normal speed
+‘r’           make the text follow the audio again
+‘?’           show the help box
+‘q’           quit
+
+   The rarer commands sit behind a prefix key: swap the two windows with
+‘s s’, choose the layout with ‘s v’, change any option with ‘s o’, and
+toggle automatic resume with ‘s t’.
+
+* Menu:
+
+* Scrolling by hand::
+
+
+File: subtle.info,  Node: Scrolling by hand,  Up: The keys
+
+8.3.1 Scrolling by hand
+-----------------------
+
+Scroll the way you always do.  Autoscroll pauses and a notice appears.
+It resumes by itself after a few seconds, or at once when you press ‘r’.
+Nothing ever moves the text under you unless the spoken cue has left the
+screen.
+
+
+File: subtle.info,  Node: Trying options live,  Next: A first configuration,  Prev: The keys,  Up: Tutorial
+
+8.4 Trying options live
+=======================
+
+Open a session, then press ‘s o’.  It asks for an option and a value,
+and the open session changes at once.  Try ‘subtle-text-scale’ with 1.6,
+or ‘subtle-layout’ with ‘paragraph-flow’.  Use ‘s v’ as a shortcut for
+the layout.
+
+   What you set this way lasts for the Emacs session.  To keep it, put
+it in your configuration.
+
+
+File: subtle.info,  Node: A first configuration,  Next: Hooks (1),  Prev: Trying options live,  Up: Tutorial
+
+8.5 A first configuration
+=========================
+
+Options are ordinary Emacs variables.  They live in the ‘subtle’
+customization group, so ‘M-x customize-group RET subtle’ works too.  A
+handful worth knowing:
+
+     (setopt subtle-text-scale 1.5        ; bigger text (1.0 is your normal size)
+             subtle-layout 'paragraph-flow ; running text instead of one cue per line
+             subtle-resume-delay 10       ; wait 10 seconds before autoscroll resumes
+             subtle-seek-small 10         ; the skip keys jump 10 seconds
+             subtle-speed-step 0.1        ; finer speed steps
+             subtle-move-point 'never)    ; the cursor stays on the word you study
+
+   Use ‘setopt’ (Emacs 29) so a change in a running session takes effect
+at once.  With plain ‘setq’ the new value is used from the next session.
+
+* Menu:
+
+* Layouts: Layouts (1).
+* Your own keys::
+
+
+File: subtle.info,  Node: Layouts (1),  Next: Your own keys,  Up: A first configuration
+
+8.5.1 Layouts
+-------------
+
+‘subtle-layout’ decides how cues are arranged:
+
+   • ‘single-spaced’ (the default) is one cue per line.
+   • ‘double-spaced’ puts a blank line between cues.
+   • ‘sentence’ breaks the line after each sentence.
+   • ‘paragraph-flow’ is running text, broken at paragraph breaks.
+   • ‘paragraph-pause’ is the same, and playback pauses at each break so
+     you can catch up.
+
+
+File: subtle.info,  Node: Your own keys,  Prev: Layouts (1),  Up: A first configuration
+
+8.5.2 Your own keys
+-------------------
+
+The keymap is ‘subtle-mode-map’.  Bind what you like; the strip at the
+top and the help box show your keys automatically.
+
+     (with-eval-after-load 'subtle
+       (keymap-set subtle-mode-map "SPC" #'subtle-toggle-pause))
+
+
+File: subtle.info,  Node: Hooks (1),  Next: A complete setup,  Prev: A first configuration,  Up: Tutorial
+
+8.6 Hooks
+=========
+
+Hooks let your own code join in.  Two you may want soon:
+
+     ;; Announce each session.
+     (add-hook 'subtle-open-hook
+               (lambda () (message "Reading with subtle")))
+
+     ;; Run something in every subtitle buffer, e.g. a different font.
+     (add-hook 'subtle-buffer-setup-hook
+               (lambda () (setq-local line-spacing 0.3)))
+
+   The manual lists them all, with the arguments they pass.
+
+
+File: subtle.info,  Node: A complete setup,  Next: Where to go next,  Prev: Hooks (1),  Up: Tutorial
+
+8.7 A complete setup
+====================
+
+     (use-package subtle
+       :ensure t
+       :commands (subtle-open subtle-dired-open subtle-bookmark-jump)
+       :bind (:map dired-mode-map ("C-c s" . subtle-dired-open))
+       :custom
+       (subtle-text-scale 1.4)
+       (subtle-layout 'paragraph-flow)
+       (subtle-resume-delay 8)
+       :config
+       (keymap-set subtle-mode-map "SPC" #'subtle-toggle-pause))
+
+
+File: subtle.info,  Node: Where to go next,  Prev: A complete setup,  Up: Tutorial
+
+8.8 Where to go next
+====================
+
+   • ‘M-x subtle-manual’ for every option, command, hook and face, and
+     for the functions you can call from your own code.
+   • The Info manual: ‘C-h i d m subtle RET’.
+   • ‘M-x bookmark-set’ in a subtle buffer saves your place: media,
+     subtitles and time.  Jumping to it reopens them a few seconds
+     earlier, paused; set ‘subtle-bookmark-autoplay’ to start playing at
+     once.
+
+
 Tag Table:
 Node: Top216
-Node: Overview1505
-Node: Requirements1692
-Node: Starting and stopping1980
-Node: Autoscroll2874
-Node: Layouts3368
-Node: Quick reference4107
-Node: Keys4276
-Node: Customization groups5295
-Node: Options5899
-Node: Playback6459
-Node: Scrolling9444
-Node: Text11236
-Node: Blitz reading13175
-Node: Popups14362
-Node: Commands14974
-Node: Hooks15617
-Node: Normal hooks15835
-Node: Abnormal hooks16741
-Node: Faces18248
-Node: Extending19170
-Node: Public API19405
-Node: Adding a key20627
-Node: React to the spoken cue20922
-Node: Recipe studying at a slow speed21293
-Node: Using subtle with bltzread21765
-Node: Dired22867
+Node: Overview1801
+Node: Requirements1988
+Node: Starting and stopping2276
+Node: Autoscroll3170
+Node: Layouts3664
+Node: Quick reference4403
+Node: Keys4572
+Node: Customization groups5597
+Node: Options6220
+Node: Playback6781
+Node: Scrolling9766
+Node: Text11558
+Node: Point tracking13498
+Node: Popups14898
+Node: Commands15511
+Node: Hooks16154
+Node: Normal hooks16372
+Node: Abnormal hooks17278
+Node: Faces18786
+Node: Extending19789
+Node: Public API20041
+Node: Adding a key21263
+Node: React to the spoken cue21558
+Node: Recipe studying at a slow speed21929
+Node: Using subtle with bltzread22401
+Node: Dired23503
+Node: Tutorial23709
+Node: The lay of the land24171
+Node: Your first session25143
+Node: The keys25821
+Node: Scrolling by hand26746
+Node: Trying options live27087
+Node: A first configuration27592
+Node: Layouts (1)28606
+Node: Your own keys29134
+Node: Hooks (1)29494
+Node: A complete setup30039
+Node: Where to go next30560
 
 End Tag Table
 

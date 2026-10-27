@@ -101,7 +101,7 @@ sub-map =subtle-prefix-map=, behind the =s= key).
 | =subtle-playback=   | mpv, seeking, speed, files                      |
 | =subtle-scrolling=  | autoscroll and the notice                       |
 | =subtle-text=       | layout and the look of the text                 |
-| =subtle-point-track=      | blitz reading                                   |
+| =subtle-point-track=      | point tracking                                  |
 | =subtle-hooks=      | hooks and extension points                      |
 | =subtle-faces=      | faces and the look of popups                    |
 
@@ -190,12 +190,12 @@ The strip is an alist of (COMMAND . LABEL).  The key shown is looked up in
           (subtle-help . "help")))
 #+end_src
 
-** Blitz reading
+** Point tracking
 
-Blitz reading makes point follow the playback: at every new cue it jumps to
+Point tracking makes point follow the playback: at every new cue it jumps to
 the word a package chose (bltzread: the first unknown one), or to the start
 of the cue when none was chosen.  \\[subtle-point-track-toggle] switches it on and
-off.  Moving point off the cue pauses it until point is back on the cue.
+off.  Moving point off the cue pauses it (the state is "released") until point is back on the cue, or the cue reaches the line point is on; then it tracks again without moving point.  A tracking you switched off stays off.
 Moving point less than =subtle-point-track-nav-grace= seconds before a cue change
 releases it as well, so a word you are just reading is not snatched away.
 A card that is open when point moves is dismissed, and
@@ -205,8 +205,8 @@ new word: bltzread opens its card there, so no key is needed.
 | Option                         | Default | Meaning                                    |
 |--------------------------------+---------+--------------------------------------------|
 | =subtle-point-track-initially=          | t       | Point jumps to the chosen word of each new cue. |
-| =subtle-point-track-nav-grace=       | 0.25    | Moving point this many seconds before a cue change releases blitz. |
-| =subtle-point-track-indicator=       | t       | Show a small corner box while blitz is on. |
+| =subtle-point-track-nav-grace=       | 0.25    | Moving point this many seconds before a cue change releases tracking. |
+| =subtle-point-track-indicator=       | t       | Show a small corner box while point tracking is on. |
 
 ** Popups
 
@@ -260,7 +260,7 @@ Every hook is also a customizable option, so use =add-hook= or Customize.
 | =subtle-anchor-functions=          | none: return a position to keep on screen, or nil. |
 | =subtle-dismiss-functions=         | none: close something on screen; the first non-nil wins. |
 | =subtle-cue-point-functions=       | BEG END of the cue: return where point should go, or nil. The first answer wins. |
-| =subtle-point-track-moved-functions=     | BUFFER POS: blitz reading just moved point to POS; show something about the word there. |
+| =subtle-point-track-moved-functions=     | BUFFER POS: point tracking just moved point to POS; show something about the word there. |
 
 * Faces
 
@@ -271,7 +271,7 @@ Every hook is also a customizable option, so use =add-hook= or Customize.
 | =subtle-key=                | key names in the control strip          |
 | =subtle-header-state=       | the play or pause state in the header line |
 | =subtle-header-label=       | the name in the header line             |
-| =subtle-point-track-indicator=    | the text of the blitz indicator         |
+| =subtle-point-track-indicator=    | the text of the point tracking indicator         |
 | =subtle-popup=              | body of popup boxes                     |
 | =subtle-popup-border=       | border of popup boxes                   |
 | =subtle-popup-title=        | titles in popup boxes                   |

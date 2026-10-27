@@ -44,7 +44,7 @@ make compile   # byte-compile, warnings are errors
 make checkdoc  # docstring conventions
 make test      # ERT suite
 make lint      # package-lint (must be installed)
-make info      # build subtle.info from the manual
+make info      # build subtle.info from the manual and tutorial
 #+end_src
 
 * License

@@ -619,6 +619,27 @@
 (ert-deftest subtle-point-track-old-navigation-does-not ()
   (should (equal (subtle-test--point-track-run 'tracking 5 nil) '(12 21))))
 
+;; The playback reaching the line point is on resumes released tracking.
+(defun subtle-test--point-track-reach (state)
+  "Cue 2 starts while point sits on it and tracking is in STATE; return the state."
+  (with-temp-buffer
+    (insert "aaaa bbb\ncccc ddd\neeee fff\n")
+    (setq subtle--spans (vector (cons 1 9) (cons 10 18) (cons 19 27))
+          subtle-point-track--span (cons 1 9) subtle-point-track--state state)
+    (goto-char 12)
+    (let ((subtle-cue-point-functions nil)
+          (subtle-before-cue-change-functions '(subtle-point-track--before-cue-change))
+          (subtle-cue-change-functions '(subtle-point-track--after-cue-change)))
+      (run-hook-with-args 'subtle-before-cue-change-functions (current-buffer) 1)
+      (run-hook-with-args 'subtle-cue-change-functions (current-buffer) 1)
+      (list subtle-point-track--state (point)))))
+
+(ert-deftest subtle-point-track-resumes-when-the-cue-reaches-point ()
+  (should (equal (subtle-test--point-track-reach 'released) '(tracking 12))))
+
+(ert-deftest subtle-point-track-off-stays-off-when-the-cue-reaches-point ()
+  (should (equal (subtle-test--point-track-reach 'off) '(off 12))))
+
 (ert-deftest subtle-point-track-dismisses-a-card-and-keeps-following ()
   (let* ((open t)
          (subtle-dismiss-functions (list (lambda () (setq open nil) t))))
